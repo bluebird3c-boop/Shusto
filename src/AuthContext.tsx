@@ -27,58 +27,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
       try {
         if (firebaseUser) {
-          // Sync user to Firestore
           const userRef = doc(db, 'users', firebaseUser.uid);
           const userDoc = await getDoc(userRef);
           
           if (!userDoc.exists()) {
-            // Check if there's a manual entry with this email using a predictable ID
+            // Check for manual entry
             const manualRef = doc(db, 'users', `email_${firebaseUser.email}`);
-            const manualDoc = await getDoc(manualRef);
-            
-            if (manualDoc.exists()) {
-              // Found a manual entry, "claim" it by updating UID
-              const manualData = manualDoc.data();
-              
-              const newProfile: UserProfile = {
-                uid: firebaseUser.uid,
-                displayName: firebaseUser.displayName || manualData.displayName,
-                email: firebaseUser.email,
-                photoURL: firebaseUser.photoURL || manualData.photoURL,
-                role: manualData.role
-              };
-              
-              // If it's the admin email, force admin role
-              if (firebaseUser.email === 'shustobd@gmail.com') {
-                newProfile.role = 'admin';
+            let manualData: any = null;
+            try {
+              const manualDoc = await getDoc(manualRef);
+              if (manualDoc.exists()) {
+                manualData = manualDoc.data();
               }
-              
-              await setDoc(userRef, newProfile);
-              // Delete the old manual entry
-              await deleteDoc(manualRef);
-              setUser(newProfile);
-            } else {
-              // No manual entry, create new user
-              const role = firebaseUser.email === 'shustobd@gmail.com' ? 'admin' : 'user';
-              const newProfile: UserProfile = {
-                uid: firebaseUser.uid,
-                displayName: firebaseUser.displayName,
-                email: firebaseUser.email,
-                photoURL: firebaseUser.photoURL,
-                role: role as any
-              };
-              await setDoc(userRef, newProfile);
-              setUser(newProfile);
+            } catch (e) {
+              console.log("No manual entry found or permission denied for manual check");
             }
+            
+            const role = firebaseUser.email === 'shustobd@gmail.com' ? 'admin' : (manualData?.role || 'user');
+            const newProfile: UserProfile = {
+              uid: firebaseUser.uid,
+              displayName: firebaseUser.displayName || manualData?.displayName || 'User',
+              email: firebaseUser.email,
+              photoURL: firebaseUser.photoURL || manualData?.photoURL || null,
+              role: role as any
+            };
+            
+            await setDoc(userRef, newProfile);
+            if (manualData) {
+              try {
+                await deleteDoc(manualRef);
+              } catch (e) {
+                console.log("Could not delete manual entry, but profile created");
+              }
+            }
+            setUser(newProfile);
           } else {
             const existingData = userDoc.data() as UserProfile;
-            // Force admin role for the specific email
             if (firebaseUser.email === 'shustobd@gmail.com' && existingData.role !== 'admin') {
-              const updatedProfile = { ...existingData, role: 'admin' as const };
               await updateDoc(userRef, { role: 'admin' });
-              setUser(updatedProfile);
+              setUser({ ...existingData, role: 'admin' });
             } else {
               setUser(existingData);
             }
@@ -88,6 +78,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error("Auth sync error:", error);
+        // Even if Firestore fails, we can set a basic user object from firebaseUser
+        if (firebaseUser) {
+          setUser({
+            uid: firebaseUser.uid,
+            displayName: firebaseUser.displayName,
+            email: firebaseUser.email,
+            photoURL: firebaseUser.photoURL,
+            role: firebaseUser.email === 'shustobd@gmail.com' ? 'admin' : 'user'
+          });
+        }
       } finally {
         setLoading(false);
       }
