@@ -37,12 +37,15 @@ interface LabTest {
 }
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'medicines' | 'labTests'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'medicines' | 'labTests' | 'appointments' | 'orders' | 'labOrders'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [labTests, setLabTests] = useState<LabTest[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [labOrders, setLabOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   
@@ -82,12 +85,27 @@ export function AdminDashboard() {
       setLabTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LabTest)));
     });
 
+    const unsubAppointments = onSnapshot(collection(db, 'appointments'), (snapshot) => {
+      setAppointments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubLabOrders = onSnapshot(collection(db, 'labOrders'), (snapshot) => {
+      setLabOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
     setLoading(false);
     return () => {
       unsubUsers();
       unsubDoctors();
       unsubMedicines();
       unsubLabTests();
+      unsubAppointments();
+      unsubOrders();
+      unsubLabOrders();
     };
   }, []);
 
@@ -316,17 +334,17 @@ export function AdminDashboard() {
         </button>
       </div>
 
-      <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
-        {(['users', 'doctors', 'medicines', 'labTests'] as const).map((tab) => (
+      <div className="flex items-center gap-4 border-b border-slate-100 pb-4 overflow-x-auto">
+        {(['users', 'doctors', 'medicines', 'labTests', 'appointments', 'orders', 'labOrders'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "px-6 py-2 rounded-xl font-bold text-sm transition-all capitalize",
+              "px-6 py-2 rounded-xl font-bold text-sm transition-all capitalize whitespace-nowrap",
               activeTab === tab ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
             )}
           >
-            {tab.replace('Tests', ' Tests')}
+            {tab.replace('Tests', ' Tests').replace('Orders', ' Orders')}
           </button>
         ))}
       </div>
@@ -538,6 +556,86 @@ export function AdminDashboard() {
                   <td className="px-6 py-4 font-bold text-emerald-600">৳{test.price}</td>
                   <td className="px-6 py-4">
                     <button onClick={() => deleteItem('labTests', test.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeTab === 'appointments' && (
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Patient</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Doctor</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Status</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {appointments.map((app) => (
+                <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">{app.userName}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{app.doctorName}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-2 py-1 rounded-lg text-xs font-bold uppercase",
+                      app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                    )}>{app.status}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => deleteItem('appointments', app.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeTab === 'orders' && (
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Customer</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Items</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Total</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {orders.map((order) => (
+                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">{order.userName}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{order.items.join(', ')}</td>
+                  <td className="px-6 py-4 font-bold text-emerald-600">৳{order.total}</td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => deleteItem('orders', order.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeTab === 'labOrders' && (
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Patient</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Test</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Price</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {labOrders.map((order) => (
+                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">{order.userName}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{order.testName}</td>
+                  <td className="px-6 py-4 font-bold text-emerald-600">৳{order.price}</td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => deleteItem('labOrders', order.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
                   </td>
                 </tr>
               ))}

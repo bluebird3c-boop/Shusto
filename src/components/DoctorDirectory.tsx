@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Star, Clock, Search } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuth } from '../AuthContext';
 
 interface Doctor {
   id: string;
@@ -15,9 +16,12 @@ interface Doctor {
 }
 
 export function DoctorDirectory() {
+  const { user } = useAuth();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [bookingDoctor, setBookingDoctor] = useState<Doctor | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success'>('idle');
 
   useEffect(() => {
     // Fetch ONLY from 'doctors' collection
@@ -41,6 +45,31 @@ export function DoctorDirectory() {
 
     return () => unsubDoctors();
   }, []);
+
+  const handleBook = async () => {
+    if (!user || !bookingDoctor) return;
+    setBookingStatus('booking');
+    try {
+      await addDoc(collection(db, 'appointments'), {
+        userId: user.uid,
+        userName: user.displayName,
+        targetId: bookingDoctor.id,
+        doctorName: bookingDoctor.name,
+        fee: bookingDoctor.fee,
+        status: 'pending',
+        date: new Date().toISOString(),
+        type: 'video'
+      });
+      setBookingStatus('success');
+      setTimeout(() => {
+        setBookingStatus('idle');
+        setBookingDoctor(null);
+      }, 2000);
+    } catch (error) {
+      console.error("Booking error:", error);
+      setBookingStatus('idle');
+    }
+  };
 
   const filteredDoctors = doctors.filter(doc => 
     doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,13 +157,63 @@ export function DoctorDirectory() {
                     <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Consultation Fee</p>
                     <p className="text-lg font-bold text-slate-900">৳{doc.fee}</p>
                   </div>
-                  <button className="px-6 py-3 bg-emerald-500 text-white text-sm font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all">
+                  <button 
+                    onClick={() => setBookingDoctor(doc)}
+                    className="px-6 py-3 bg-emerald-500 text-white text-sm font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all"
+                  >
                     Book Now
                   </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Booking Modal */}
+      {bookingDoctor && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100">
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock size={40} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">Confirm Booking</h2>
+              <p className="text-slate-500">Appointment with {bookingDoctor.name}</p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-8">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Consultation Fee</span>
+                <span className="font-bold text-slate-900">৳{bookingDoctor.fee}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Service Charge</span>
+                <span className="font-bold text-slate-900">৳0</span>
+              </div>
+              <div className="pt-3 border-t border-slate-200 flex justify-between font-bold text-lg">
+                <span className="text-slate-900">Total</span>
+                <span className="text-emerald-600">৳{bookingDoctor.fee}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setBookingDoctor(null)}
+                disabled={bookingStatus === 'booking'}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleBook}
+                disabled={bookingStatus !== 'idle'}
+                className="flex-1 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
+              >
+                {bookingStatus === 'booking' ? 'Booking...' : bookingStatus === 'success' ? 'Booked!' : 'Confirm'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

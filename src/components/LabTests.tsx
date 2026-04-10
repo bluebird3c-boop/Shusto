@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { FlaskConical, Clock, Info, ChevronRight } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuth } from '../AuthContext';
+import { X } from 'lucide-react';
 
 interface LabTest {
   id: string;
@@ -12,9 +14,12 @@ interface LabTest {
 }
 
 export function LabTests() {
+  const { user } = useAuth();
   const [manualTests, setManualTests] = useState<LabTest[]>([]);
   const [userLabs, setUserLabs] = useState<LabTest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bookingTest, setBookingTest] = useState<LabTest | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success'>('idle');
 
   useEffect(() => {
     // Fetch from 'labTests' collection
@@ -53,6 +58,30 @@ export function LabTests() {
       unsubUsers();
     };
   }, []);
+
+  const handleBook = async () => {
+    if (!user || !bookingTest) return;
+    setBookingStatus('booking');
+    try {
+      await addDoc(collection(db, 'labOrders'), {
+        userId: user.uid,
+        userName: user.displayName,
+        testId: bookingTest.id,
+        testName: bookingTest.name,
+        price: bookingTest.price,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      });
+      setBookingStatus('success');
+      setTimeout(() => {
+        setBookingStatus('idle');
+        setBookingTest(null);
+      }, 2000);
+    } catch (error) {
+      console.error("Lab booking error:", error);
+      setBookingStatus('idle');
+    }
+  };
 
   const allTests = [...manualTests, ...userLabs];
 
@@ -100,13 +129,47 @@ export function LabTests() {
 
               <div className="text-right">
                 <p className="text-2xl font-bold text-slate-900 mb-2">৳{test.price}</p>
-                <button className="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm hover:gap-2 transition-all">
+                <button 
+                  onClick={() => setBookingTest(test)}
+                  className="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm hover:gap-2 transition-all"
+                >
                   Book Test
                   <ChevronRight size={18} />
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Booking Modal */}
+      {bookingTest && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Book Lab Test</h2>
+              <button onClick={() => setBookingTest(null)} className="p-2 hover:bg-slate-50 rounded-xl">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl mb-8">
+              <p className="text-xs font-bold text-emerald-600 uppercase mb-1">{bookingTest.category}</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-4">{bookingTest.name}</h3>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+                <span className="text-slate-500 font-medium">Test Price</span>
+                <span className="text-2xl font-bold text-emerald-600">৳{bookingTest.price}</span>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleBook}
+              disabled={bookingStatus !== 'idle'}
+              className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
+            >
+              {bookingStatus === 'booking' ? 'Processing...' : bookingStatus === 'success' ? 'Test Booked!' : 'Confirm Booking'}
+            </button>
+          </div>
         </div>
       )}
     </div>
