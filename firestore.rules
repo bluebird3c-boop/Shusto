@@ -1,0 +1,262 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string
+    //   - email: string (required)
+    //   - photoURL: string
+    //   - role: string (enum: ['user', 'admin', 'doctor', 'pharmacy', 'physio', 'hospital', 'ambulance', 'lab'])
+    //
+    // Collection: medicines
+    // Document ID: {medicineId}
+    // Fields:
+    //   - name: string (required)
+    //   - description: string
+    //   - price: number (required)
+    //   - category: string
+    //   - image: string
+    //
+    // Collection: doctors
+    // Document ID: {doctorId}
+    // Fields:
+    //   - name: string (required)
+    //   - specialty: string (required)
+    //   - fee: number (required)
+    //   - availability: string
+    //   - image: string
+    //
+    // Collection: labTests
+    // Document ID: {testId}
+    // Fields:
+    //   - name: string (required)
+    //   - description: string
+    //   - price: number (required)
+    //   - category: string
+    //
+    // Collection: users/{userId}/prescriptions
+    // Document ID: {prescriptionId}
+    // Fields:
+    //   - userId: string (required)
+    //   - doctorName: string (required)
+    //   - date: string (required, ISO 8601)
+    //   - medicines: list (strings)
+    //   - status: string (enum: ['active', 'completed'])
+    //
+    // Collection: users/{userId}/appointments
+    // Document ID: {appointmentId}
+    // Fields:
+    //   - userId: string (required)
+    //   - type: string (enum: ['doctor', 'lab'])
+    //   - targetId: string (required)
+    //   - targetName: string
+    //   - date: string (required, ISO 8601)
+    //   - status: string (enum: ['pending', 'confirmed', 'cancelled'])
+    //
+    // Collection: callSessions
+    // Document ID: {sessionId}
+    // Fields:
+    //   - channelName: string
+    //   - doctorId: string
+    //   - patientId: string
+    //   - status: string (enum: ['waiting', 'active', 'ended'])
+    //
+    // Collection: serviceRequests
+    // Document ID: {requestId}
+    // Fields:
+    //   - userId: string
+    //   - serviceType: string (enum: ['ambulance', 'physio', 'hospital', 'lab'])
+    //   - status: string
+    //
+    // Collection: wallets
+    // Document ID: {walletId}
+    // Fields:
+    //   - uid: string
+    //   - balance: number
+    //
+    // Collection: transactions
+    // Document ID: {transactionId}
+    // Fields:
+    //   - userId: string
+    //   - amount: number
+    //   - type: string
+    //   - status: string
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "shustobd@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isDoctor() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
+
+    function isPharmacy() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'pharmacy';
+    }
+
+    function isPhysio() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'physio';
+    }
+
+    function isHospital() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'hospital';
+    }
+
+    function isAmbulance() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ambulance';
+    }
+
+    function isLab() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'lab';
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Validation Functions
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             isValidEmail(data.email) &&
+             (!('address' in data) || data.address is string) &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             (!('role' in data) || data.role in ['user', 'admin', 'doctor', 'pharmacy', 'physio', 'hospital', 'ambulance', 'lab']);
+    }
+
+    function isValidMedicine(data) {
+      return data.keys().hasAll(['name', 'price']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is number && data.price >= 0;
+    }
+
+    function isValidDoctor(data) {
+      return data.keys().hasAll(['name', 'specialty', 'fee']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.specialty is string && data.fee is number && data.fee >= 0;
+    }
+
+    function isValidLabTest(data) {
+      return data.keys().hasAll(['name', 'price']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.price is number && data.price >= 0;
+    }
+
+    function isValidPrescription(data) {
+      return data.keys().hasAll(['userId', 'doctorName', 'date']) &&
+             data.userId is string && data.doctorName is string &&
+             isValidDateString(data.date);
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['userId', 'type', 'targetId', 'date']) &&
+             data.userId is string && data.type in ['doctor', 'lab'] &&
+             isValidDateString(data.date);
+    }
+
+    function isValidCallSession(data) {
+      return data.keys().hasAll(['channelName', 'doctorId', 'patientId', 'status']) &&
+             data.status in ['waiting', 'active', 'ended'];
+    }
+
+    function isValidServiceRequest(data) {
+      return data.keys().hasAll(['userId', 'serviceType', 'status']) &&
+             data.serviceType in ['ambulance', 'physio', 'hospital', 'lab'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                      (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                      ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+    }
+
+    match /medicines/{medicineId} {
+      allow read: if true; // Publicly readable catalog
+      allow write: if isAdmin();
+    }
+
+    match /doctors/{doctorId} {
+      allow read: if true; // Publicly readable catalog
+      allow write: if isAdmin();
+    }
+
+    match /labTests/{testId} {
+      allow read: if true; // Publicly readable catalog
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId}/prescriptions/{prescriptionId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidPrescription(request.resource.data);
+      allow update: if isOwner(userId) && isValidPrescription(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId}/appointments/{appointmentId} {
+      allow read: if isOwner(userId) || isAdmin() || isDoctor() || isLab();
+      allow create: if isOwner(userId) && isValidAppointment(request.resource.data);
+      allow update: if isOwner(userId) || isAdmin() || isDoctor() || isLab();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /callSessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCallSession(request.resource.data);
+      allow update: if isAuthenticated();
+    }
+
+    match /serviceRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidServiceRequest(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || isPhysio() || isHospital() || isAmbulance() || isLab());
+    }
+
+    match /wallets/{walletId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.providerId || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+    }
+  }
+}
