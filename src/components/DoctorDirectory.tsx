@@ -1,19 +1,57 @@
-import React from 'react';
-import { Star, Clock, MapPin, Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Star, Clock, Search } from 'lucide-react';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../firebase';
 
-const DOCTORS = [
-  { id: '1', name: 'Dr. Sarah Ahmed', specialty: 'Cardiologist', rating: 4.9, reviews: 120, fee: 800, image: 'https://picsum.photos/seed/doc1/400/400' },
-  { id: '2', name: 'Dr. James Wilson', specialty: 'Dermatologist', rating: 4.8, reviews: 85, fee: 600, image: 'https://picsum.photos/seed/doc2/400/400' },
-  { id: '3', name: 'Dr. Emily Chen', specialty: 'Pediatrician', rating: 5.0, reviews: 210, fee: 700, image: 'https://picsum.photos/seed/doc3/400/400' },
-  { id: '4', name: 'Dr. Michael Brown', specialty: 'Neurologist', rating: 4.7, reviews: 64, fee: 1000, image: 'https://picsum.photos/seed/doc4/400/400' },
-];
+interface Doctor {
+  id: string;
+  name: string;
+  specialty: string;
+  fee: number;
+  image?: string;
+  rating?: number;
+  bmdcNumber?: string;
+  experience?: string;
+}
 
 export function DoctorDirectory() {
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    // Fetch ONLY from 'doctors' collection
+    const qDoctors = query(collection(db, 'doctors'));
+    const unsubDoctors = onSnapshot(qDoctors, (snapshot) => {
+      const docs = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Doctor[];
+      
+      // Filter: Only show doctors with BMDC Number and Fee
+      const verifiedDocs = docs.filter(d => d.bmdcNumber && d.fee && d.fee > 0);
+      
+      setDoctors(verifiedDocs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Doctors fetch error:", error);
+      setLoading(false);
+    });
+
+    return () => unsubDoctors();
+  }, []);
+
+  const filteredDoctors = doctors.filter(doc => 
+    doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    doc.specialty.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Find a Doctor</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Find a Doctor ({doctors.length})</h1>
           <p className="text-slate-500">Book an appointment with top specialists.</p>
         </div>
         <div className="relative">
@@ -21,56 +59,84 @@ export function DoctorDirectory() {
           <input 
             type="text" 
             placeholder="Search by specialty or name..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-80"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {DOCTORS.map((doc, index) => (
-          <div
-            key={doc.id}
-            className="bg-white rounded-[32px] border border-slate-100 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group"
-          >
-            <div className="relative mb-6">
-              <img 
-                src={doc.image} 
-                alt={doc.name} 
-                className="w-full aspect-square object-cover rounded-3xl"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 text-xs font-bold text-amber-500">
-                <Star size={14} fill="currentColor" />
-                {doc.rating}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{doc.name}</h3>
-                <p className="text-emerald-600 font-medium text-sm">{doc.specialty}</p>
-              </div>
-
-              <div className="flex items-center gap-4 text-slate-400 text-sm">
-                <div className="flex items-center gap-1">
-                  <Clock size={16} />
-                  <span>Available Today</span>
+      {loading ? (
+        <div className="p-12 text-center text-slate-400">Loading doctors...</div>
+      ) : filteredDoctors.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-[40px] border border-dashed border-slate-200 text-slate-400">
+          {searchQuery ? 'No doctors match your search.' : 'No doctors found. Please add some from the Admin Panel.'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredDoctors.map((doc) => (
+            <div
+              key={doc.id}
+              className="bg-white rounded-[32px] border border-slate-100 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group"
+            >
+              <div className="relative mb-6">
+                <img 
+                  src={doc.image || `https://picsum.photos/seed/${doc.id}/400/400`} 
+                  alt={doc.name} 
+                  className="w-full aspect-square object-cover rounded-3xl"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 text-xs font-bold text-amber-500">
+                  <Star size={14} fill="currentColor" />
+                  {doc.rating || 5.0}
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+              <div className="space-y-4">
                 <div>
-                  <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Consultation Fee</p>
-                  <p className="text-lg font-bold text-slate-900">৳{doc.fee}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-bold text-slate-900">{doc.name}</h3>
+                    {doc.bmdcNumber && (
+                      <div className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-md border border-blue-100 uppercase">
+                        Verified
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-emerald-600 font-medium text-sm">{doc.specialty}</p>
                 </div>
-                <button className="px-6 py-3 bg-emerald-500 text-white text-sm font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all">
-                  Book Now
-                </button>
+
+                <div className="grid grid-cols-2 gap-2 py-2">
+                  <div className="bg-slate-50 p-2 rounded-xl">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold">BMDC Reg</p>
+                    <p className="text-xs font-bold text-slate-700">{doc.bmdcNumber || 'N/A'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-xl">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold">Experience</p>
+                    <p className="text-xs font-bold text-slate-700">{doc.experience || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 text-slate-400 text-sm">
+                  <div className="flex items-center gap-1">
+                    <Clock size={16} />
+                    <span>Available Today</span>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Consultation Fee</p>
+                    <p className="text-lg font-bold text-slate-900">৳{doc.fee}</p>
+                  </div>
+                  <button className="px-6 py-3 bg-emerald-500 text-white text-sm font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all">
+                    Book Now
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -62,21 +62,12 @@ export function Dashboard() {
         >
           <div className="relative z-10">
             <h3 className="text-lg font-medium opacity-80 mb-2">Upcoming Appointment</h3>
-            <h2 className="text-3xl font-bold mb-6">Dr. Sarah Ahmed</h2>
+            <h2 className="text-3xl font-bold mb-6">No Appointments</h2>
             
-            <div className="flex flex-wrap gap-6 mb-8">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl">
-                <Calendar size={18} />
-                <span className="text-sm font-medium">Tomorrow, 10:30 AM</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl">
-                <Clock size={18} />
-                <span>Video Call</span>
-              </div>
-            </div>
+            <p className="text-emerald-50 mb-8">You don't have any appointments scheduled for today.</p>
 
             <button className="bg-white text-emerald-600 px-8 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2">
-              Join Meeting
+              Book Appointment
               <ArrowRight size={20} />
             </button>
           </div>
@@ -94,24 +85,9 @@ export function Dashboard() {
           </div>
 
           <div className="space-y-6">
-            {[
-              { title: 'Blood Test Results', time: '2 hours ago', type: 'Lab Test' },
-              { title: 'Medicine Purchased', time: '5 hours ago', type: 'Pharmacy' },
-              { title: 'Prescription Added', time: 'Yesterday', type: 'Medical' },
-            ].map((activity, i) => (
-              <div key={i} className="flex items-center justify-between group cursor-pointer">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors">
-                    <TrendingUp size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-900">{activity.title}</p>
-                    <p className="text-sm text-slate-400">{activity.time} • {activity.type}</p>
-                  </div>
-                </div>
-                <ChevronRight size={20} className="text-slate-300 group-hover:text-emerald-500 transition-colors" />
-              </div>
-            ))}
+            <div className="p-8 text-center text-slate-400 border border-dashed border-slate-100 rounded-3xl">
+              No recent activity found.
+            </div>
           </div>
         </div>
       </div>
