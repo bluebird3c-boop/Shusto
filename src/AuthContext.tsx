@@ -34,13 +34,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userDoc = await getDoc(userRef);
           
           if (!userDoc.exists()) {
-            // Check if there's a manual entry with this email
-            const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
-            const querySnapshot = await getDocs(q);
+            // Check if there's a manual entry with this email using a predictable ID
+            const manualRef = doc(db, 'users', `email_${firebaseUser.email}`);
+            const manualDoc = await getDoc(manualRef);
             
-            if (!querySnapshot.empty) {
+            if (manualDoc.exists()) {
               // Found a manual entry, "claim" it by updating UID
-              const manualDoc = querySnapshot.docs[0];
               const manualData = manualDoc.data();
               
               const newProfile: UserProfile = {
@@ -57,10 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
               
               await setDoc(userRef, newProfile);
-              // Delete the old manual entry if it had a different UID
-              if (manualData.uid !== firebaseUser.uid) {
-                await deleteDoc(doc(db, 'users', manualData.uid));
-              }
+              // Delete the old manual entry
+              await deleteDoc(manualRef);
               setUser(newProfile);
             } else {
               // No manual entry, create new user

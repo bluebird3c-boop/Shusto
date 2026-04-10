@@ -73,15 +73,15 @@ export function AdminDashboard() {
         // Update local state
         setUsers(prevUsers => prevUsers.map(u => u.uid === existingData.uid ? providerData : u));
       } else {
-        // User doesn't exist, create new manual entry
-        const uid = `manual_${Date.now()}`;
+        // User doesn't exist, create new manual entry using email-based ID
+        const docId = `email_${newProvider.email}`;
         providerData = { 
           ...newProvider, 
-          uid,
-          photoURL: `https://picsum.photos/seed/${uid}/100/100` 
+          uid: docId, // Use docId as temporary UID
+          photoURL: `https://picsum.photos/seed/${newProvider.email}/100/100` 
         } as any;
         
-        await setDoc(doc(db, 'users', uid), providerData);
+        await setDoc(doc(db, 'users', docId), providerData);
         setUsers(prevUsers => [...prevUsers, providerData]);
       }
       
