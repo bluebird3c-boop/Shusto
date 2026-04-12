@@ -15,6 +15,7 @@ interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
+  error: string | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -24,10 +25,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        setError("Connection timeout. Please check your internet or try refreshing.");
+        setLoading(false);
+      }
+    }, 15000); // 15 seconds timeout
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(timeout);
       setLoading(true);
+      setError(null);
       try {
         if (firebaseUser) {
           const userRef = doc(db, 'users', firebaseUser.uid);
@@ -105,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

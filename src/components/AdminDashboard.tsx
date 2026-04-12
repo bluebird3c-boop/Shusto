@@ -314,42 +314,25 @@ export function AdminDashboard() {
 
         {/* Row 2: Add Buttons */}
         <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={() => { setActiveTab('doctors'); setShowAddModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-100 transition-all text-sm border border-emerald-100"
-          >
-            <Plus size={18} /> Add Doctor
-          </button>
-          <button 
-            onClick={() => { setActiveTab('pharmacies'); setShowAddModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-100 transition-all text-sm border border-emerald-100"
-          >
-            <Plus size={18} /> Add Pharmacy
-          </button>
-          <button 
-            onClick={() => { setActiveTab('hospitals'); setShowAddModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
-          >
-            <Plus size={18} /> Add Hospital
-          </button>
-          <button 
-            onClick={() => { setActiveTab('labs'); setShowAddModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
-          >
-            <Plus size={18} /> Add Lab
-          </button>
-          <button 
-            onClick={() => { setActiveTab('physios'); setShowAddModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
-          >
-            <Plus size={18} /> Add Physio
-          </button>
-          <button 
-            onClick={() => { setActiveTab('ambulances'); setShowAddModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
-          >
-            <Plus size={18} /> Add Ambulance
-          </button>
+          {['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 font-bold rounded-2xl transition-all text-sm border",
+                ['doctors', 'pharmacies'].includes(activeTab) 
+                  ? "bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100" 
+                  : "bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100"
+              )}
+            >
+              <Plus size={18} /> Add {
+                activeTab === 'pharmacies' ? 'Pharmacy' :
+                activeTab === 'labs' ? 'Lab' :
+                activeTab === 'physios' ? 'Physio' :
+                activeTab === 'hospitals' ? 'Hospital' :
+                activeTab === 'ambulances' ? 'Ambulance' : 'Doctor'
+              }
+            </button>
+          )}
         </div>
       </div>
 

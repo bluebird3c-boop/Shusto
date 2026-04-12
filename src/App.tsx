@@ -21,9 +21,10 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { VideoCall } from './components/VideoCall';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
+import { AlertCircle } from 'lucide-react';
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, error } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [incomingCall, setIncomingCall] = useState<{ channel: string; doctorId: string } | null>(null);
 
@@ -54,6 +55,24 @@ function AppContent() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
         <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-slate-500 font-medium">Loading Shusto...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
+        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+          <AlertCircle size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Connection Issue</h2>
+        <p className="text-slate-500 mb-6 max-w-xs">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-8 py-3 bg-emerald-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/20"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
