@@ -145,6 +145,23 @@ export function AdminDashboard() {
         id,
         email 
       });
+
+      // Also update/create user role if they exist or for when they login
+      const userQuery = query(collection(db, 'users'), where('email', '==', email));
+      const userSnapshot = await getDocs(userQuery);
+      
+      if (!userSnapshot.empty) {
+        const userDoc = userSnapshot.docs[0];
+        await updateDoc(doc(db, 'users', userDoc.id), { role: 'doctor' });
+      } else {
+        // Create a placeholder for when they login
+        const manualId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'users', manualId), {
+          email,
+          role: 'doctor',
+          displayName: newDoctor.name
+        });
+      }
       
       setNewDoctor({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
       setShowAddModal(false);
@@ -201,6 +218,24 @@ export function AdminDashboard() {
       console.log(`Adding provider to ${collectionName} with ID ${id}`, newProvider);
       
       await setDoc(doc(db, collectionName, id), { ...newProvider, id, type });
+
+      // Also update/create user role if they exist or for when they login
+      const email = newProvider.email.toLowerCase();
+      const userQuery = query(collection(db, 'users'), where('email', '==', email));
+      const userSnapshot = await getDocs(userQuery);
+      
+      if (!userSnapshot.empty) {
+        const userDoc = userSnapshot.docs[0];
+        await updateDoc(doc(db, 'users', userDoc.id), { role: type });
+      } else {
+        // Create a placeholder for when they login
+        const manualId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'users', manualId), {
+          email,
+          role: type,
+          displayName: newProvider.name
+        });
+      }
       
       setNewProvider({ name: '', location: '', contact: '', email: '' });
       setShowAddModal(false);

@@ -97,8 +97,42 @@ export function DoctorDirectory() {
   );
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8">
-      <div className="flex-1 space-y-8">
+    <div className="space-y-8">
+      {/* Top Section: My Appointments */}
+      {myAppointments.length > 0 && (
+        <div className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+            <Clock className="text-emerald-500" size={24} />
+            My Appointments
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {myAppointments.map((app) => (
+              <div key={app.id} className="p-5 rounded-[28px] bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-all group">
+                <div className="flex justify-between items-start mb-3">
+                  <p className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">{app.doctorName}</p>
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                    app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : 
+                    app.status === 'cancelled' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                  )}>
+                    {app.status}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <div className="flex items-center gap-1">
+                    <Clock size={12} />
+                    <span>{new Date(app.date).toLocaleDateString()}</span>
+                  </div>
+                  <span className="font-bold text-slate-700">৳{app.fee}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Find a Doctor ({doctors.length})</h1>
@@ -123,7 +157,7 @@ export function DoctorDirectory() {
             {searchQuery ? 'No doctors match your search.' : 'No doctors found. Please add some from the Admin Panel.'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDoctors.map((doc) => (
               <div
                 key={doc.id}
@@ -190,41 +224,6 @@ export function DoctorDirectory() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Right Sidebar: My Appointments */}
-      <div className="w-full lg:w-80 space-y-6">
-        <div className="bg-white rounded-[32px] border border-slate-100 p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <Clock className="text-emerald-500" size={20} />
-            My Appointments
-          </h2>
-          
-          <div className="space-y-4">
-            {myAppointments.length === 0 ? (
-              <p className="text-center text-slate-400 py-8 text-sm">No appointments yet.</p>
-            ) : (
-              myAppointments.map((app) => (
-                <div key={app.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <p className="font-bold text-slate-900 text-sm">{app.doctorName}</p>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                      app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : 
-                      app.status === 'cancelled' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
-                    )}>
-                      {app.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span>{new Date(app.date).toLocaleDateString()}</span>
-                    <span className="font-bold text-emerald-600">৳{app.fee}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Booking Modal */}
