@@ -50,13 +50,15 @@ service cloud.firestore {
     //   - medicines: list (strings)
     //   - status: string (enum: ['active', 'completed'])
     //
-    // Collection: users/{userId}/appointments
+    // Collection: appointments
     // Document ID: {appointmentId}
     // Fields:
     //   - userId: string (required)
-    //   - type: string (enum: ['doctor', 'lab'])
+    //   - userName: string
+    //   - type: string (enum: ['doctor', 'lab', 'video'])
     //   - targetId: string (required)
-    //   - targetName: string
+    //   - doctorName: string
+    //   - fee: number
     //   - date: string (required, ISO 8601)
     //   - status: string (enum: ['pending', 'confirmed', 'cancelled'])
     //
@@ -180,7 +182,7 @@ service cloud.firestore {
 
     function isValidAppointment(data) {
       return data.keys().hasAll(['userId', 'type', 'targetId', 'date']) &&
-             data.userId is string && data.type in ['doctor', 'lab'] &&
+             data.userId is string && data.type in ['doctor', 'lab', 'video'] &&
              isValidDateString(data.date);
     }
 
@@ -228,11 +230,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /users/{userId}/appointments/{appointmentId} {
-      allow read: if isOwner(userId) || isAdmin() || isDoctor() || isLab();
-      allow create: if isOwner(userId) && isValidAppointment(request.resource.data);
-      allow update: if isOwner(userId) || isAdmin() || isDoctor() || isLab();
-      allow delete: if isOwner(userId) || isAdmin();
+    match /appointments/{appointmentId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.targetId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidAppointment(request.resource.data);
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.targetId || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
     }
 
     match /callSessions/{sessionId} {

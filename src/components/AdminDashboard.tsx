@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -139,15 +139,20 @@ export function AdminDashboard() {
       return;
     }
     
-    await setDoc(doc(db, 'doctors', id), { 
-      ...newDoctor, 
-      id,
-      email 
-    });
-    
-    setNewDoctor({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
-    setShowAddModal(false);
-    showSuccess("Doctor added successfully!");
+    try {
+      await setDoc(doc(db, 'doctors', id), { 
+        ...newDoctor, 
+        id,
+        email 
+      });
+      
+      setNewDoctor({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
+      setShowAddModal(false);
+      showSuccess("Doctor added successfully!");
+    } catch (error) {
+      console.error("Error adding doctor:", error);
+      handleFirestoreError(error, OperationType.WRITE, 'doctors');
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,19 +188,27 @@ export function AdminDashboard() {
 
   const handleAddGeneralProvider = async (e: React.FormEvent) => {
     e.preventDefault();
-    const type = activeTab === 'pharmacies' ? 'pharmacy' : 
-                 activeTab === 'labs' ? 'lab' : 
-                 activeTab === 'physios' ? 'physio' : 
-                 activeTab === 'hospitals' ? 'hospital' : 'ambulance';
-    
-    const collectionName = activeTab;
-    const cleanName = newProvider.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-    const id = `${type}_${cleanName}`;
-    
-    await setDoc(doc(db, collectionName, id), { ...newProvider, id, type });
-    setNewProvider({ name: '', location: '', contact: '', email: '' });
-    setShowAddModal(false);
-    showSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`);
+    try {
+      const type = activeTab === 'pharmacies' ? 'pharmacy' : 
+                   activeTab === 'labs' ? 'lab' : 
+                   activeTab === 'physios' ? 'physio' : 
+                   activeTab === 'hospitals' ? 'hospital' : 'ambulance';
+      
+      const collectionName = activeTab;
+      const cleanName = newProvider.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+      const id = `${type}_${cleanName}`;
+      
+      console.log(`Adding provider to ${collectionName} with ID ${id}`, newProvider);
+      
+      await setDoc(doc(db, collectionName, id), { ...newProvider, id, type });
+      
+      setNewProvider({ name: '', location: '', contact: '', email: '' });
+      setShowAddModal(false);
+      showSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`);
+    } catch (error) {
+      console.error("Error adding provider:", error);
+      handleFirestoreError(error, OperationType.WRITE, activeTab);
+    }
   };
 
   const allDoctors = Array.from(
