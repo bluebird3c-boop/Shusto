@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Search, MapPin, Phone, ExternalLink } from 'lucide-react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle } from 'lucide-react';
+import { collection, onSnapshot, query, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuth } from '../AuthContext';
 
 interface ServiceProvider {
   id: string;
@@ -19,9 +20,12 @@ interface ServiceDirectoryProps {
 }
 
 export function ServiceDirectory({ type, title, description }: ServiceDirectoryProps) {
+  const { user } = useAuth();
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [bookingProvider, setBookingProvider] = useState<ServiceProvider | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success'>('idle');
 
   useEffect(() => {
     const collectionName = type === 'pharmacy' ? 'pharmacies' : 
@@ -40,6 +44,30 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
     });
     return () => unsubscribe();
   }, [type]);
+
+  const handleBook = async () => {
+    if (!user || !bookingProvider) return;
+    setBookingStatus('booking');
+    try {
+      await addDoc(collection(db, 'serviceRequests'), {
+        userId: user.uid,
+        userName: user.displayName || user.email,
+        providerId: bookingProvider.id,
+        providerName: bookingProvider.name,
+        providerType: type,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      });
+      setBookingStatus('success');
+      setTimeout(() => {
+        setBookingStatus('idle');
+        setBookingProvider(null);
+      }, 2000);
+    } catch (error) {
+      console.error("Booking error:", error);
+      setBookingStatus('idle');
+    }
+  };
 
   const filteredProviders = providers.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -102,12 +130,58 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
                 </div>
               </div>
 
-              <button className="w-full py-3 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-2">
-                View Details
+              <button 
+                onClick={() => setBookingProvider(provider)}
+                className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+              >
+                Book Now
                 <ExternalLink size={16} />
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Booking Modal */}
+      {bookingProvider && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100">
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock size={40} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">Confirm Booking</h2>
+              <p className="text-slate-500">Request service from {bookingProvider.name}</p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-8">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Service Type</span>
+                <span className="font-bold text-slate-900 capitalize">{type}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Location</span>
+                <span className="font-bold text-slate-900">{bookingProvider.location}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setBookingProvider(null)}
+                disabled={bookingStatus === 'booking'}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleBook}
+                disabled={bookingStatus !== 'idle'}
+                className="flex-1 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
+              >
+                {bookingStatus === 'booking' ? 'Booking...' : bookingStatus === 'success' ? 'Booked!' : 'Confirm'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -9,6 +9,7 @@ interface UserProfile {
   displayName: string;
   email: string;
   role: string;
+  photoURL?: string;
 }
 
 interface Doctor {
@@ -46,28 +47,21 @@ interface Provider {
 }
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'medicines' | 'labTests' | 'appointments' | 'orders' | 'labOrders' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [labTests, setLabTests] = useState<LabTest[]>([]);
   const [pharmacies, setPharmacies] = useState<Provider[]>([]);
   const [labs, setLabs] = useState<Provider[]>([]);
   const [physios, setPhysios] = useState<Provider[]>([]);
   const [hospitals, setHospitals] = useState<Provider[]>([]);
   const [ambulances, setAmbulances] = useState<Provider[]>([]);
-  const [appointments, setAppointments] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [labOrders, setLabOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [updatingDoctorId, setUpdatingDoctorId] = useState<string | null>(null);
   
   // Form states
   const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
-  const [newMedicine, setNewMedicine] = useState({ name: '', category: '', price: 0 });
-  const [newLabTest, setNewLabTest] = useState({ name: '', category: '', price: 0 });
   const [newProvider, setNewProvider] = useState({ name: '', location: '', contact: '', email: '' });
 
   useEffect(() => {
@@ -91,26 +85,6 @@ export function AdminDashboard() {
 
     const unsubDoctors = onSnapshot(collection(db, 'doctors'), (snapshot) => {
       setManualDoctors(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Doctor)));
-    });
-
-    const unsubMedicines = onSnapshot(collection(db, 'medicines'), (snapshot) => {
-      setMedicines(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Medicine)));
-    });
-
-    const unsubLabTests = onSnapshot(collection(db, 'labTests'), (snapshot) => {
-      setLabTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LabTest)));
-    });
-
-    const unsubAppointments = onSnapshot(collection(db, 'appointments'), (snapshot) => {
-      setAppointments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
-      setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    const unsubLabOrders = onSnapshot(collection(db, 'labOrders'), (snapshot) => {
-      setLabOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubPharmacies = onSnapshot(collection(db, 'pharmacies'), (snapshot) => {
@@ -137,11 +111,6 @@ export function AdminDashboard() {
     return () => {
       unsubUsers();
       unsubDoctors();
-      unsubMedicines();
-      unsubLabTests();
-      unsubAppointments();
-      unsubOrders();
-      unsubLabOrders();
       unsubPharmacies();
       unsubLabs();
       unsubPhysios();
@@ -212,30 +181,6 @@ export function AdminDashboard() {
     }
   };
 
-  const handleAddMedicine = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Use name as ID to prevent duplicates
-    const cleanName = newMedicine.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-    const id = `med_${cleanName}`;
-    
-    await setDoc(doc(db, 'medicines', id), { ...newMedicine, id });
-    setNewMedicine({ name: '', category: '', price: 0 });
-    setShowAddModal(false);
-    showSuccess("Medicine added/updated successfully!");
-  };
-
-  const handleAddLabTest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Use name as ID to prevent duplicates
-    const cleanName = newLabTest.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-    const id = `lab_${cleanName}`;
-    
-    await setDoc(doc(db, 'labTests', id), { ...newLabTest, id });
-    setNewLabTest({ name: '', category: '', price: 0 });
-    setShowAddModal(false);
-    showSuccess("Lab test added/updated successfully!");
-  };
-
   const handleAddGeneralProvider = async (e: React.FormEvent) => {
     e.preventDefault();
     const type = activeTab === 'pharmacies' ? 'pharmacy' : 
@@ -251,54 +196,6 @@ export function AdminDashboard() {
     setNewProvider({ name: '', location: '', contact: '', email: '' });
     setShowAddModal(false);
     showSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`);
-  };
-
-  const seedMedicines = async () => {
-    if (!confirm("Seed common Bangladeshi medicines (Napa, Ace, Fexo, etc.)?")) return;
-    
-    const commonMeds = [
-      { name: "Napa 500mg", category: "Paracetamol", price: 1.2 },
-      { name: "Ace 500mg", category: "Paracetamol", price: 1.2 },
-      { name: "Napa Extend", category: "Paracetamol", price: 2.5 },
-      { name: "Fexo 120mg", category: "Antihistamine", price: 8 },
-      { name: "Fexo 180mg", category: "Antihistamine", price: 10 },
-      { name: "Sergel 20mg", category: "Proton Pump Inhibitor", price: 7 },
-      { name: "Seclo 20mg", category: "Proton Pump Inhibitor", price: 5 },
-      { name: "Finix 20mg", category: "Proton Pump Inhibitor", price: 7 },
-      { name: "Alatrol 10mg", category: "Antihistamine", price: 3 },
-      { name: "Monas 10mg", category: "Montelukast", price: 15 },
-      { name: "Zithrin 500mg", category: "Antibiotic", price: 35 },
-      { name: "Azith 500mg", category: "Antibiotic", price: 35 },
-      { name: "Ciprocin 500mg", category: "Antibiotic", price: 15 },
-      { name: "Entacyd Plus", category: "Antacid", price: 2 },
-      { name: "Pantonix 20mg", category: "Proton Pump Inhibitor", price: 7 },
-      { name: "Esonix 20mg", category: "Proton Pump Inhibitor", price: 7 },
-      { name: "Fenadin 120mg", category: "Antihistamine", price: 8 },
-      { name: "Deslor 5mg", category: "Antihistamine", price: 4 },
-      { name: "Tofen 1mg", category: "Antihistamine", price: 3 },
-      { name: "Xeldrin 20mg", category: "Proton Pump Inhibitor", price: 6 },
-      { name: "Maxpro 20mg", category: "Proton Pump Inhibitor", price: 7 },
-      { name: "Amodis 400mg", category: "Metronidazole", price: 3 },
-      { name: "Filmet 400mg", category: "Metronidazole", price: 2.5 },
-      { name: "Flagyl 400mg", category: "Metronidazole", price: 3 },
-      { name: "Bizoran 20/5", category: "Antihypertensive", price: 12 },
-      { name: "Osartil 50mg", category: "Antihypertensive", price: 8 },
-      { name: "Angilock 50mg", category: "Antihypertensive", price: 8 },
-      { name: "Rivotril 0.5mg", category: "Benzodiazepine", price: 6 },
-      { name: "Sedno 5mg", category: "Benzodiazepine", price: 5 },
-      { name: "Thyrox 50mcg", category: "Thyroid Hormone", price: 4 },
-      { name: "Euthyrox 50mcg", category: "Thyroid Hormone", price: 5 },
-      { name: "Glicron 80mg", category: "Antidiabetic", price: 6 },
-      { name: "Compaun 5mg", category: "Antidiabetic", price: 4 },
-      { name: "Metfo 500mg", category: "Antidiabetic", price: 3 },
-    ];
-
-    for (const med of commonMeds) {
-      const cleanName = med.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-      const id = `med_${cleanName}`;
-      await setDoc(doc(db, 'medicines', id), { ...med, id });
-    }
-    showSuccess("Common medicines seeded successfully!");
   };
 
   const allDoctors = Array.from(
@@ -327,32 +224,6 @@ export function AdminDashboard() {
       }
 
       showSuccess(`Cleanup complete! Removed ${manualDeleted} manual entries and reset ${usersReset} user roles.`);
-    }
-  };
-
-  const cleanupMedicines = async () => {
-    if (confirm('Delete all medicines without a price?')) {
-      let count = 0;
-      for (const med of medicines) {
-        if (!med.price || med.price <= 0) {
-          await deleteDoc(doc(db, 'medicines', med.id));
-          count++;
-        }
-      }
-      showSuccess(`Removed ${count} invalid medicines.`);
-    }
-  };
-
-  const cleanupLabTests = async () => {
-    if (confirm('Delete all lab tests without a price?')) {
-      let count = 0;
-      for (const test of labTests) {
-        if (!test.price || test.price <= 0) {
-          await deleteDoc(doc(db, 'labTests', test.id));
-          count++;
-        }
-      }
-      showSuccess(`Removed ${count} invalid lab tests.`);
     }
   };
 
@@ -419,52 +290,82 @@ export function AdminDashboard() {
       </div>
 
       {/* Quick Actions Card */}
-      <div className="bg-emerald-500 rounded-[40px] p-8 text-white shadow-2xl shadow-emerald-500/20 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div>
-          <h2 className="text-3xl font-bold mb-2">Management Panel</h2>
-          <p className="text-emerald-50 text-lg">Add and manage doctors, medicines, lab tests, and providers.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {activeTab === 'medicines' && (
-            <button 
-              onClick={seedMedicines}
-              className="flex items-center gap-3 px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-xl whitespace-nowrap"
-            >
-              Seed Common Meds
-            </button>
-          )}
-          {activeTab !== 'users' && activeTab !== 'appointments' && activeTab !== 'orders' && activeTab !== 'labOrders' && (
-            <button 
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-3 px-8 py-4 bg-white text-emerald-600 font-bold rounded-2xl hover:bg-emerald-50 transition-all shadow-xl whitespace-nowrap"
-            >
-              <Plus size={24} />
-              Add New {activeTab.slice(0, -1)}
-            </button>
-          )}
-        </div>
+      <div className="bg-emerald-500 rounded-[40px] p-8 text-white shadow-2xl shadow-emerald-500/20">
+        <h2 className="text-3xl font-bold mb-2">Management Panel</h2>
+        <p className="text-emerald-50 text-lg">Add and manage doctors, pharmacies, and healthcare providers.</p>
       </div>
 
-      <div className="flex items-center gap-4 border-b border-slate-100 pb-4 overflow-x-auto">
-        {(['users', 'doctors', 'medicines', 'labTests', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances', 'appointments', 'orders', 'labOrders'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "px-6 py-2 rounded-xl font-bold text-sm transition-all capitalize whitespace-nowrap",
-              activeTab === tab ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
-            )}
+      <div className="space-y-6">
+        {/* Row 1: Navigation Tabs */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
+          {(['users', 'doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "px-5 py-2 rounded-xl font-bold text-sm transition-all capitalize",
+                activeTab === tab ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
+              )}
+            >
+              {tab.replace('Tests', ' Tests').replace('Orders', ' Orders')}
+            </button>
+          ))}
+        </div>
+
+        {/* Row 2: Add Buttons */}
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={() => { setActiveTab('doctors'); setShowAddModal(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-100 transition-all text-sm border border-emerald-100"
           >
-            {tab.replace('Tests', ' Tests').replace('Orders', ' Orders')}
+            <Plus size={18} /> Add Doctor
           </button>
-        ))}
+          <button 
+            onClick={() => { setActiveTab('pharmacies'); setShowAddModal(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-100 transition-all text-sm border border-emerald-100"
+          >
+            <Plus size={18} /> Add Pharmacy
+          </button>
+          <button 
+            onClick={() => { setActiveTab('hospitals'); setShowAddModal(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
+          >
+            <Plus size={18} /> Add Hospital
+          </button>
+          <button 
+            onClick={() => { setActiveTab('labs'); setShowAddModal(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
+          >
+            <Plus size={18} /> Add Lab
+          </button>
+          <button 
+            onClick={() => { setActiveTab('physios'); setShowAddModal(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
+          >
+            <Plus size={18} /> Add Physio
+          </button>
+          <button 
+            onClick={() => { setActiveTab('ambulances'); setShowAddModal(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all text-sm border border-slate-100"
+          >
+            <Plus size={18} /> Add Ambulance
+          </button>
+        </div>
       </div>
 
       {showAddModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-900">Add {activeTab}</h2>
+              <h2 className="text-2xl font-bold text-slate-900">
+                Add {
+                  activeTab === 'pharmacies' ? 'Pharmacy' :
+                  activeTab === 'labs' ? 'Lab' :
+                  activeTab === 'physios' ? 'Physio' :
+                  activeTab === 'hospitals' ? 'Hospital' :
+                  activeTab === 'ambulances' ? 'Ambulance' : 'Doctor'
+                }
+              </h2>
               <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors">
                 <X size={20} className="text-slate-400" />
               </button>
@@ -507,27 +408,6 @@ export function AdminDashboard() {
                 </div>
                 <input required type="number" placeholder="Consultation Fee" value={newDoctor.fee} onChange={e => setNewDoctor({...newDoctor, fee: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
                 <button type="submit" className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl">Add Doctor</button>
-              </form>
-            )}
-
-            {activeTab === 'medicines' && (
-              <form onSubmit={handleAddMedicine} className="space-y-4">
-                <div className="p-3 bg-blue-50 text-blue-600 text-xs rounded-xl mb-2">
-                  Tip: Copy medicine name and price from Medex for accuracy.
-                </div>
-                <input required type="text" placeholder="Medicine Name" value={newMedicine.name} onChange={e => setNewMedicine({...newMedicine, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <input required type="text" placeholder="Category" value={newMedicine.category} onChange={e => setNewMedicine({...newMedicine, category: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <input required type="number" placeholder="Price" value={newMedicine.price} onChange={e => setNewMedicine({...newMedicine, price: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <button type="submit" className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl">Add Medicine</button>
-              </form>
-            )}
-
-            {activeTab === 'labTests' && (
-              <form onSubmit={handleAddLabTest} className="space-y-4">
-                <input required type="text" placeholder="Test Name" value={newLabTest.name} onChange={e => setNewLabTest({...newLabTest, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <input required type="text" placeholder="Category" value={newLabTest.category} onChange={e => setNewLabTest({...newLabTest, category: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <input required type="number" placeholder="Price" value={newLabTest.price} onChange={e => setNewLabTest({...newLabTest, price: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <button type="submit" className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl">Add Lab Test</button>
               </form>
             )}
           </div>
@@ -644,131 +524,6 @@ export function AdminDashboard() {
           </table>
         )}
 
-        {activeTab === 'medicines' && (
-          <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
-            <p className="text-sm text-amber-700 font-medium">
-              Found {medicines.filter(m => !m.price).length} invalid medicines.
-            </p>
-            <button onClick={cleanupMedicines} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl">
-              Cleanup Medicines
-            </button>
-          </div>
-        )}
-        {activeTab === 'medicines' && (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Medicine</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Category</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Price</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {medicines.map((med) => (
-                <tr key={med.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{med.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{med.category}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-600">৳{med.price}</td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => deleteItem('medicines', med.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {activeTab === 'labTests' && (
-          <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
-            <p className="text-sm text-amber-700 font-medium">
-              Found {labTests.filter(t => !t.price).length} invalid lab tests.
-            </p>
-            <button onClick={cleanupLabTests} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl">
-              Cleanup Lab Tests
-            </button>
-          </div>
-        )}
-        {activeTab === 'labTests' && (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Test</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Category</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Price</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {labTests.map((test) => (
-                <tr key={test.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{test.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{test.category}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-600">৳{test.price}</td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => deleteItem('labTests', test.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {activeTab === 'appointments' && (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Patient</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Doctor</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Status</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {appointments.map((app) => (
-                <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{app.userName}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{app.doctorName}</td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "px-2 py-1 rounded-lg text-xs font-bold uppercase",
-                      app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
-                    )}>{app.status}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => deleteItem('appointments', app.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {activeTab === 'orders' && (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Customer</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Items</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Total</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{order.userName}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{order.items.join(', ')}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-600">৳{order.total}</td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => deleteItem('orders', order.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
         {['pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-100">
@@ -790,31 +545,6 @@ export function AdminDashboard() {
                   <td className="px-6 py-4 text-sm text-slate-500">{item.contact}</td>
                   <td className="px-6 py-4">
                     <button onClick={() => deleteItem(activeTab, item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {activeTab === 'labOrders' && (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Patient</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Test</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Price</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {labOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{order.userName}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{order.testName}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-600">৳{order.price}</td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => deleteItem('labOrders', order.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
                   </td>
                 </tr>
               ))}
