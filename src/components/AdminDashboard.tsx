@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera } from 'lucide-react';
+import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera, RefreshCcw } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface UserProfile {
@@ -131,41 +131,40 @@ export function AdminDashboard() {
     const email = newDoctor.email.toLowerCase();
     const cleanEmail = email.replace(/[^a-zA-Z0-9]/g, '_');
     const id = `doc_${cleanEmail}`;
-    
-    // Check if already exists
     const existing = manualDoctors.find(d => d.id === id);
-    if (existing) {
-      alert("This Doctor Already Existed");
-      return;
-    }
     
     try {
+      // Update or create doctor record
       await setDoc(doc(db, 'doctors', id), { 
         ...newDoctor, 
         id,
         email 
       });
 
-      // Also update/create user role if they exist or for when they login
+      // Update ALL user accounts with this email to have the 'doctor' role
       const userQuery = query(collection(db, 'users'), where('email', '==', email));
       const userSnapshot = await getDocs(userQuery);
       
       if (!userSnapshot.empty) {
-        const userDoc = userSnapshot.docs[0];
-        await updateDoc(doc(db, 'users', userDoc.id), { role: 'doctor' });
+        // Update every document found with this email (handles duplicates/placeholders)
+        const updatePromises = userSnapshot.docs.map(userDoc => 
+          updateDoc(doc(db, 'users', userDoc.id), { role: 'doctor' })
+        );
+        await Promise.all(updatePromises);
       } else {
         // Create a placeholder for when they login
         const manualId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
         await setDoc(doc(db, 'users', manualId), {
           email,
           role: 'doctor',
-          displayName: newDoctor.name
+          displayName: newDoctor.name,
+          uid: manualId // placeholder uid
         });
       }
       
       setNewDoctor({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
       setShowAddModal(false);
-      showSuccess("Doctor added successfully!");
+      showSuccess(existing ? "Doctor info and role updated!" : "Doctor added successfully!");
     } catch (error) {
       console.error("Error adding doctor:", error);
       handleFirestoreError(error, OperationType.WRITE, 'doctors');
@@ -219,21 +218,24 @@ export function AdminDashboard() {
       
       await setDoc(doc(db, collectionName, id), { ...newProvider, id, type });
 
-      // Also update/create user role if they exist or for when they login
+      // Update ALL user accounts with this email to have the correct role
       const email = newProvider.email.toLowerCase();
       const userQuery = query(collection(db, 'users'), where('email', '==', email));
       const userSnapshot = await getDocs(userQuery);
       
       if (!userSnapshot.empty) {
-        const userDoc = userSnapshot.docs[0];
-        await updateDoc(doc(db, 'users', userDoc.id), { role: type });
+        const updatePromises = userSnapshot.docs.map(userDoc => 
+          updateDoc(doc(db, 'users', userDoc.id), { role: type })
+        );
+        await Promise.all(updatePromises);
       } else {
         // Create a placeholder for when they login
         const manualId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
         await setDoc(doc(db, 'users', manualId), {
           email,
           role: type,
-          displayName: newProvider.name
+          displayName: newProvider.name,
+          uid: manualId
         });
       }
       
@@ -283,10 +285,40 @@ export function AdminDashboard() {
 
   const updateUserRole = async (userId: string, newRole: string) => {
     try {
+      const userToUpdate = users.find(u => u.uid === userId);
       await updateDoc(doc(db, 'users', userId), { role: newRole });
+      
+      // If the user being updated is a provider, we should also ensure they have a record in the respective collection
+      if (userToUpdate && ['doctor', 'pharmacy', 'lab', 'physio', 'hospital', 'ambulance'].includes(newRole)) {
+        const collectionName = newRole === 'doctor' ? 'doctors' : 
+                             newRole === 'pharmacy' ? 'pharmacies' : 
+                             newRole === 'lab' ? 'labs' : 
+                             newRole === 'physio' ? 'physios' : 
+                             newRole === 'hospital' ? 'hospitals' : 'ambulances';
+        
+        const providerId = `u_${userId}`;
+        const providerRef = doc(db, collectionName, providerId);
+        const providerDoc = await getDoc(providerRef);
+        
+        if (!providerDoc.exists()) {
+          // Create a basic provider record so they show up in directories
+          await setDoc(providerRef, {
+            id: providerId,
+            name: userToUpdate.displayName || 'Unnamed Provider',
+            email: userToUpdate.email,
+            type: newRole,
+            userId: userId,
+            // Default values for doctors
+            ...(newRole === 'doctor' ? { specialty: 'General Physician', fee: 500, bmdcNumber: 'Pending' } : { location: 'Pending', contact: 'Pending' })
+          });
+        }
+      }
+
       setUsers(users.map(u => u.uid === userId ? { ...u, role: newRole } : u));
+      showSuccess(`Role updated to ${newRole} successfully!`);
     } catch (error) {
       console.error("Error updating role:", error);
+      alert("Failed to update role. Please check permissions.");
     }
   };
 
@@ -466,6 +498,13 @@ export function AdminDashboard() {
                     <select value={user.role} onChange={(e) => updateUserRole(user.uid, e.target.value)} className="text-sm border border-slate-200 rounded-lg px-2 py-1">
                       {roles.map(role => <option key={role.id} value={role.id}>{role.label}</option>)}
                     </select>
+                    <button 
+                      onClick={() => updateUserRole(user.uid, user.role)} 
+                      className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl" 
+                      title="Sync/Fix Role"
+                    >
+                      <RefreshCcw size={18} />
+                    </button>
                     <button onClick={() => deleteItem('users', user.uid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl" title="Delete User">
                       <Trash2 size={18} />
                     </button>

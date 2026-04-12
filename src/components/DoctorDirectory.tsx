@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Star, Clock, Search } from 'lucide-react';
-import { collection, onSnapshot, query, addDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
@@ -70,10 +70,25 @@ export function DoctorDirectory() {
     if (!user || !bookingDoctor) return;
     setBookingStatus('booking');
     try {
+      // Find the doctor's user account ID if it exists
+      let doctorUserId = bookingDoctor.id; // Default to the doc_ ID
+      
+      // If it's a manual doctor, we need to find their actual user UID via email
+      if (bookingDoctor.id.startsWith('doc_')) {
+        const email = (bookingDoctor as any).email;
+        if (email) {
+          const userQuery = query(collection(db, 'users'), where('email', '==', email.toLowerCase()));
+          const userSnapshot = await getDocs(userQuery);
+          if (!userSnapshot.empty) {
+            doctorUserId = userSnapshot.docs[0].id;
+          }
+        }
+      }
+
       await addDoc(collection(db, 'appointments'), {
         userId: user.uid,
         userName: user.displayName,
-        targetId: bookingDoctor.id,
+        targetId: doctorUserId, // This is what the doctor dashboard listens to
         doctorName: bookingDoctor.name,
         fee: bookingDoctor.fee,
         status: 'pending',

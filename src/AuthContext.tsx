@@ -77,6 +77,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(newProfile);
           } else {
             const existingData = userDoc.data() as UserProfile;
+            
+            // Proactive check for manual role updates (e.g. admin added them as doctor)
+            const manualRef = doc(db, 'users', `email_${firebaseUser.email}`);
+            const manualDoc = await getDoc(manualRef);
+            
+            if (manualDoc.exists()) {
+              const manualData = manualDoc.data();
+              if (manualData.role && manualData.role !== existingData.role) {
+                await updateDoc(userRef, { role: manualData.role });
+                existingData.role = manualData.role;
+                try {
+                  await deleteDoc(manualRef);
+                } catch (e) {
+                  console.log("Could not delete manual entry");
+                }
+              }
+            }
+
             if (firebaseUser.email === 'shustobd@gmail.com' && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
               setUser({ ...existingData, role: 'admin' });
