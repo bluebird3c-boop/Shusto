@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search } from 'lucide-react';
+import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface UserProfile {
@@ -36,24 +36,39 @@ interface LabTest {
   price: number;
 }
 
+interface Provider {
+  id: string;
+  name: string;
+  location: string;
+  contact?: string;
+  email: string;
+  type: 'pharmacy' | 'lab' | 'physio' | 'hospital' | 'ambulance';
+}
+
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'medicines' | 'labTests' | 'appointments' | 'orders' | 'labOrders'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'medicines' | 'labTests' | 'appointments' | 'orders' | 'labOrders' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [labTests, setLabTests] = useState<LabTest[]>([]);
+  const [pharmacies, setPharmacies] = useState<Provider[]>([]);
+  const [labs, setLabs] = useState<Provider[]>([]);
+  const [physios, setPhysios] = useState<Provider[]>([]);
+  const [hospitals, setHospitals] = useState<Provider[]>([]);
+  const [ambulances, setAmbulances] = useState<Provider[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [labOrders, setLabOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [updatingDoctorId, setUpdatingDoctorId] = useState<string | null>(null);
   
   // Form states
-  const [newProvider, setNewProvider] = useState({ displayName: '', email: '', role: 'doctor' });
-  const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '' });
+  const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
   const [newMedicine, setNewMedicine] = useState({ name: '', category: '', price: 0 });
   const [newLabTest, setNewLabTest] = useState({ name: '', category: '', price: 0 });
+  const [newProvider, setNewProvider] = useState({ name: '', location: '', contact: '', email: '' });
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
@@ -97,6 +112,26 @@ export function AdminDashboard() {
       setLabOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
+    const unsubPharmacies = onSnapshot(collection(db, 'pharmacies'), (snapshot) => {
+      setPharmacies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
+    });
+
+    const unsubLabs = onSnapshot(collection(db, 'labs'), (snapshot) => {
+      setLabs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
+    });
+
+    const unsubPhysios = onSnapshot(collection(db, 'physios'), (snapshot) => {
+      setPhysios(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
+    });
+
+    const unsubHospitals = onSnapshot(collection(db, 'hospitals'), (snapshot) => {
+      setHospitals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
+    });
+
+    const unsubAmbulances = onSnapshot(collection(db, 'ambulances'), (snapshot) => {
+      setAmbulances(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
+    });
+
     setLoading(false);
     return () => {
       unsubUsers();
@@ -106,6 +141,11 @@ export function AdminDashboard() {
       unsubAppointments();
       unsubOrders();
       unsubLabOrders();
+      unsubPharmacies();
+      unsubLabs();
+      unsubPhysios();
+      unsubHospitals();
+      unsubAmbulances();
     };
   }, []);
 
@@ -135,9 +175,29 @@ export function AdminDashboard() {
       email 
     });
     
-    setNewDoctor({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '' });
+    setNewDoctor({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
     setShowAddModal(false);
     showSuccess("Doctor added successfully!");
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        if (updatingDoctorId) {
+          // Update existing doctor
+          await updateDoc(doc(db, 'doctors', updatingDoctorId), { image: base64 });
+          setUpdatingDoctorId(null);
+          showSuccess("Doctor photo updated!");
+        } else {
+          // New doctor form
+          setNewDoctor(prev => ({ ...prev, image: base64 }));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddMedicine = async (e: React.FormEvent) => {
@@ -162,6 +222,71 @@ export function AdminDashboard() {
     setNewLabTest({ name: '', category: '', price: 0 });
     setShowAddModal(false);
     showSuccess("Lab test added/updated successfully!");
+  };
+
+  const handleAddGeneralProvider = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const type = activeTab === 'pharmacies' ? 'pharmacy' : 
+                 activeTab === 'labs' ? 'lab' : 
+                 activeTab === 'physios' ? 'physio' : 
+                 activeTab === 'hospitals' ? 'hospital' : 'ambulance';
+    
+    const collectionName = activeTab;
+    const cleanName = newProvider.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+    const id = `${type}_${cleanName}`;
+    
+    await setDoc(doc(db, collectionName, id), { ...newProvider, id, type });
+    setNewProvider({ name: '', location: '', contact: '', email: '' });
+    setShowAddModal(false);
+    showSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`);
+  };
+
+  const seedMedicines = async () => {
+    if (!confirm("Seed common Bangladeshi medicines (Napa, Ace, Fexo, etc.)?")) return;
+    
+    const commonMeds = [
+      { name: "Napa 500mg", category: "Paracetamol", price: 1.2 },
+      { name: "Ace 500mg", category: "Paracetamol", price: 1.2 },
+      { name: "Napa Extend", category: "Paracetamol", price: 2.5 },
+      { name: "Fexo 120mg", category: "Antihistamine", price: 8 },
+      { name: "Fexo 180mg", category: "Antihistamine", price: 10 },
+      { name: "Sergel 20mg", category: "Proton Pump Inhibitor", price: 7 },
+      { name: "Seclo 20mg", category: "Proton Pump Inhibitor", price: 5 },
+      { name: "Finix 20mg", category: "Proton Pump Inhibitor", price: 7 },
+      { name: "Alatrol 10mg", category: "Antihistamine", price: 3 },
+      { name: "Monas 10mg", category: "Montelukast", price: 15 },
+      { name: "Zithrin 500mg", category: "Antibiotic", price: 35 },
+      { name: "Azith 500mg", category: "Antibiotic", price: 35 },
+      { name: "Ciprocin 500mg", category: "Antibiotic", price: 15 },
+      { name: "Entacyd Plus", category: "Antacid", price: 2 },
+      { name: "Pantonix 20mg", category: "Proton Pump Inhibitor", price: 7 },
+      { name: "Esonix 20mg", category: "Proton Pump Inhibitor", price: 7 },
+      { name: "Fenadin 120mg", category: "Antihistamine", price: 8 },
+      { name: "Deslor 5mg", category: "Antihistamine", price: 4 },
+      { name: "Tofen 1mg", category: "Antihistamine", price: 3 },
+      { name: "Xeldrin 20mg", category: "Proton Pump Inhibitor", price: 6 },
+      { name: "Maxpro 20mg", category: "Proton Pump Inhibitor", price: 7 },
+      { name: "Amodis 400mg", category: "Metronidazole", price: 3 },
+      { name: "Filmet 400mg", category: "Metronidazole", price: 2.5 },
+      { name: "Flagyl 400mg", category: "Metronidazole", price: 3 },
+      { name: "Bizoran 20/5", category: "Antihypertensive", price: 12 },
+      { name: "Osartil 50mg", category: "Antihypertensive", price: 8 },
+      { name: "Angilock 50mg", category: "Antihypertensive", price: 8 },
+      { name: "Rivotril 0.5mg", category: "Benzodiazepine", price: 6 },
+      { name: "Sedno 5mg", category: "Benzodiazepine", price: 5 },
+      { name: "Thyrox 50mcg", category: "Thyroid Hormone", price: 4 },
+      { name: "Euthyrox 50mcg", category: "Thyroid Hormone", price: 5 },
+      { name: "Glicron 80mg", category: "Antidiabetic", price: 6 },
+      { name: "Compaun 5mg", category: "Antidiabetic", price: 4 },
+      { name: "Metfo 500mg", category: "Antidiabetic", price: 3 },
+    ];
+
+    for (const med of commonMeds) {
+      const cleanName = med.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+      const id = `med_${cleanName}`;
+      await setDoc(doc(db, 'medicines', id), { ...med, id });
+    }
+    showSuccess("Common medicines seeded successfully!");
   };
 
   const allDoctors = Array.from(
@@ -234,54 +359,7 @@ export function AdminDashboard() {
     }
   };
 
-  const handleAddProvider = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Check if user already exists with this email
-      const q = query(collection(db, 'users'), where('email', '==', newProvider.email));
-      const querySnapshot = await getDocs(q);
-      
-      let providerData: UserProfile;
-      
-      if (!querySnapshot.empty) {
-        // User exists, update their role
-        const existingDoc = querySnapshot.docs[0];
-        const existingData = existingDoc.data() as UserProfile;
-        
-        await updateDoc(doc(db, 'users', existingData.uid), { 
-          role: newProvider.role,
-          displayName: newProvider.displayName || existingData.displayName
-        });
-        
-        providerData = { 
-          ...existingData, 
-          role: newProvider.role,
-          displayName: newProvider.displayName || existingData.displayName
-        };
-        
-        // Update local state
-        setUsers(prevUsers => prevUsers.map(u => u.uid === existingData.uid ? providerData : u));
-      } else {
-        // User doesn't exist, create new manual entry using email-based ID
-        const docId = `email_${newProvider.email}`;
-        providerData = { 
-          ...newProvider, 
-          uid: docId, // Use docId as temporary UID
-          photoURL: `https://picsum.photos/seed/${newProvider.email}/100/100` 
-        } as any;
-        
-        await setDoc(doc(db, 'users', docId), providerData);
-        setUsers(prevUsers => [...prevUsers, providerData]);
-      }
-      
-      setShowAddModal(false);
-      setNewProvider({ displayName: '', email: '', role: 'doctor', uid: '' });
-      console.log("Provider processed successfully");
-    } catch (error) {
-      console.error("Error processing provider:", error);
-      alert("Failed to process provider. Please check console.");
-    }
-  };
+  const handleAddProvider = null; // Removed as requested
 
   const roles = [
     { id: 'user', label: 'User', icon: UserIcon, split: 0 },
@@ -298,6 +376,15 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Hidden File Input for Doctor Images */}
+      <input 
+        id="doctor-image-upload"
+        type="file" 
+        accept="image/*" 
+        className="hidden" 
+        onChange={handleImageUpload}
+      />
+
       {/* Success Message */}
       {successMessage && (
         <div className="fixed top-4 right-4 z-[200] bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-2xl animate-bounce">
@@ -323,19 +410,31 @@ export function AdminDashboard() {
       <div className="bg-emerald-500 rounded-[40px] p-8 text-white shadow-2xl shadow-emerald-500/20 flex flex-col md:flex-row items-center justify-between gap-6">
         <div>
           <h2 className="text-3xl font-bold mb-2">Management Panel</h2>
-          <p className="text-emerald-50 text-lg">Add and manage doctors, medicines, lab tests, and users.</p>
+          <p className="text-emerald-50 text-lg">Add and manage doctors, medicines, lab tests, and providers.</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-3 px-8 py-4 bg-white text-emerald-600 font-bold rounded-2xl hover:bg-emerald-50 transition-all shadow-xl whitespace-nowrap"
-        >
-          <Plus size={24} />
-          Add New {activeTab === 'users' ? 'Provider' : activeTab === 'doctors' ? 'Doctor' : activeTab === 'medicines' ? 'Medicine' : 'Lab Test'}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {activeTab === 'medicines' && (
+            <button 
+              onClick={seedMedicines}
+              className="flex items-center gap-3 px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-xl whitespace-nowrap"
+            >
+              Seed Common Meds
+            </button>
+          )}
+          {activeTab !== 'users' && activeTab !== 'appointments' && activeTab !== 'orders' && activeTab !== 'labOrders' && (
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-3 px-8 py-4 bg-white text-emerald-600 font-bold rounded-2xl hover:bg-emerald-50 transition-all shadow-xl whitespace-nowrap"
+            >
+              <Plus size={24} />
+              Add New {activeTab.slice(0, -1)}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4 border-b border-slate-100 pb-4 overflow-x-auto">
-        {(['users', 'doctors', 'medicines', 'labTests', 'appointments', 'orders', 'labOrders'] as const).map((tab) => (
+        {(['users', 'doctors', 'medicines', 'labTests', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances', 'appointments', 'orders', 'labOrders'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -359,19 +458,34 @@ export function AdminDashboard() {
               </button>
             </div>
             
-            {activeTab === 'users' && (
-              <form onSubmit={handleAddProvider} className="space-y-4">
-                <input required type="text" placeholder="Name" value={newProvider.displayName} onChange={e => setNewProvider({...newProvider, displayName: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
+            {['pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
+              <form onSubmit={handleAddGeneralProvider} className="space-y-4">
+                <input required type="text" placeholder="Name" value={newProvider.name} onChange={e => setNewProvider({...newProvider, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
+                <input required type="text" placeholder="Location" value={newProvider.location} onChange={e => setNewProvider({...newProvider, location: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
+                <input required type="text" placeholder="Contact Number" value={newProvider.contact} onChange={e => setNewProvider({...newProvider, contact: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
                 <input required type="email" placeholder="Email" value={newProvider.email} onChange={e => setNewProvider({...newProvider, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                <select value={newProvider.role} onChange={e => setNewProvider({...newProvider, role: e.target.value as any})} className="w-full px-4 py-3 rounded-xl border border-slate-200">
-                  {roles.filter(r => r.id !== 'user').map(role => <option key={role.id} value={role.id}>{role.label}</option>)}
-                </select>
-                <button type="submit" className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl">Create Provider</button>
+                <button type="submit" className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl capitalize">Add {activeTab.slice(0, -1)}</button>
               </form>
             )}
 
             {activeTab === 'doctors' && (
               <form onSubmit={handleAddDoctor} className="space-y-4">
+                <div className="flex flex-col items-center mb-6">
+                  <div className="relative group cursor-pointer" onClick={() => document.getElementById('doctor-image-upload')?.click()}>
+                    <div className="w-24 h-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-emerald-500 transition-colors">
+                      {newDoctor.image ? (
+                        <img src={newDoctor.image} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="text-slate-400 group-hover:text-emerald-500 transition-colors" size={32} />
+                      )}
+                    </div>
+                    <div className="absolute bottom-0 right-0 p-1.5 bg-emerald-500 text-white rounded-full shadow-lg">
+                      <Plus size={14} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2 font-medium">Click to upload doctor photo</p>
+                </div>
+
                 <input required type="text" placeholder="Doctor Name" value={newDoctor.name} onChange={e => setNewDoctor({...newDoctor, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
                 <input required type="email" placeholder="Doctor Email (to prevent duplicates)" value={newDoctor.email} onChange={e => setNewDoctor({...newDoctor, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
                 <input required type="text" placeholder="Specialty" value={newDoctor.specialty} onChange={e => setNewDoctor({...newDoctor, specialty: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
@@ -466,9 +580,32 @@ export function AdminDashboard() {
             <tbody className="divide-y divide-slate-50">
               {allDoctors.map((doc) => (
                 <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-900">{doc.name}</div>
-                    <div className="text-[10px] text-slate-400">BMDC: {doc.bmdcNumber || 'N/A'}</div>
+                  <td className="px-6 py-4 flex items-center gap-3">
+                    <div 
+                      className="relative group cursor-pointer"
+                      onClick={() => {
+                        if (!(doc as any).isUserAccount) {
+                          setUpdatingDoctorId(doc.id);
+                          document.getElementById('doctor-image-upload')?.click();
+                        }
+                      }}
+                    >
+                      <img 
+                        src={doc.image || `https://picsum.photos/seed/${doc.id}/100/100`} 
+                        alt={doc.name} 
+                        className="w-10 h-10 rounded-full object-cover border border-slate-100 group-hover:opacity-75 transition-opacity"
+                        referrerPolicy="no-referrer"
+                      />
+                      {!(doc as any).isUserAccount && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Camera size={14} className="text-white drop-shadow-md" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900">{doc.name}</div>
+                      <div className="text-[10px] text-slate-400">BMDC: {doc.bmdcNumber || 'N/A'}</div>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={cn(
@@ -611,6 +748,34 @@ export function AdminDashboard() {
                   <td className="px-6 py-4 font-bold text-emerald-600">৳{order.total}</td>
                   <td className="px-6 py-4">
                     <button onClick={() => deleteItem('orders', order.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {['pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Name</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Location</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Contact</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {(activeTab === 'pharmacies' ? pharmacies : 
+                activeTab === 'labs' ? labs : 
+                activeTab === 'physios' ? physios : 
+                activeTab === 'hospitals' ? hospitals : ambulances).map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-900">{item.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{item.location}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{item.contact}</td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => deleteItem(activeTab, item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
                   </td>
                 </tr>
               ))}

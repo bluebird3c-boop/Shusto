@@ -14,6 +14,7 @@ import { PhysioDashboard } from './components/PhysioDashboard';
 import { HospitalDashboard } from './components/HospitalDashboard';
 import { AmbulanceDashboard } from './components/AmbulanceDashboard';
 import { LabDashboard } from './components/LabDashboard';
+import { ServiceDirectory } from './components/ServiceDirectory';
 import { Wallet } from './components/Wallet';
 import { Profile } from './components/Profile';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
@@ -80,11 +81,11 @@ function AppContent() {
         case 'medicine': return <MedicineStore />;
         case 'prescriptions': return <Prescriptions />;
         case 'doctors': return <DoctorDirectory />;
-        case 'lab': return <LabTests />;
+        case 'lab': return <ServiceDirectory type="lab" title="Lab Tests & Centers" description="Find diagnostic centers and book tests near you." />;
         case 'wallet': return <Wallet />;
-        case 'physio': return <PhysioDashboard />;
-        case 'hospital': return <HospitalDashboard />;
-        case 'ambulance': return <AmbulanceDashboard />;
+        case 'physio': return <ServiceDirectory type="physio" title="Physiotherapy Centers" description="Connect with expert physiotherapists for your recovery." />;
+        case 'hospital': return <ServiceDirectory type="hospital" title="Hospitals" description="Find top-rated hospitals and clinical centers." />;
+        case 'ambulance': return <ServiceDirectory type="ambulance" title="Ambulance Services" description="Emergency ambulance services available 24/7." />;
         default: break;
       }
     }
