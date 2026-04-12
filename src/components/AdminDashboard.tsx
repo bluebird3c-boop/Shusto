@@ -83,6 +83,7 @@ export function AdminDashboard() {
         fee: (u as any).fee || 0,
         bmdcNumber: (u as any).bmdcNumber,
         experience: (u as any).experience,
+        image: (u as any).image || u.photoURL,
         isUserAccount: true
       })) as Doctor[];
       setUserDoctors(uDocs);
@@ -187,10 +188,21 @@ export function AdminDashboard() {
       reader.onloadend = async () => {
         const base64 = reader.result as string;
         if (updatingDoctorId) {
-          // Update existing doctor
-          await updateDoc(doc(db, 'doctors', updatingDoctorId), { image: base64 });
+          // Find if it's a user account or manual doctor
+          const isUser = userDoctors.some(d => d.id === updatingDoctorId);
+          const collectionName = isUser ? 'users' : 'doctors';
+          
+          try {
+            await updateDoc(doc(db, collectionName, updatingDoctorId), { 
+              image: base64,
+              ...(isUser ? { photoURL: base64 } : {})
+            });
+            showSuccess("Doctor photo updated!");
+          } catch (error) {
+            console.error("Error updating photo:", error);
+            alert("Failed to update photo. The image might be too large.");
+          }
           setUpdatingDoctorId(null);
-          showSuccess("Doctor photo updated!");
         } else {
           // New doctor form
           setNewDoctor(prev => ({ ...prev, image: base64 }));
@@ -584,23 +596,25 @@ export function AdminDashboard() {
                     <div 
                       className="relative group cursor-pointer"
                       onClick={() => {
-                        if (!(doc as any).isUserAccount) {
-                          setUpdatingDoctorId(doc.id);
-                          document.getElementById('doctor-image-upload')?.click();
-                        }
+                        setUpdatingDoctorId(doc.id);
+                        document.getElementById('doctor-image-upload')?.click();
                       }}
                     >
-                      <img 
-                        src={doc.image || `https://picsum.photos/seed/${doc.id}/100/100`} 
-                        alt={doc.name} 
-                        className="w-10 h-10 rounded-full object-cover border border-slate-100 group-hover:opacity-75 transition-opacity"
-                        referrerPolicy="no-referrer"
-                      />
-                      {!(doc as any).isUserAccount && (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Camera size={14} className="text-white drop-shadow-md" />
-                        </div>
-                      )}
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-100 group-hover:opacity-75 transition-opacity">
+                        {doc.image ? (
+                          <img 
+                            src={doc.image} 
+                            alt={doc.name} 
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <UserIcon className="text-slate-400" size={20} />
+                        )}
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera size={14} className="text-white drop-shadow-md" />
+                      </div>
                     </div>
                     <div>
                       <div className="font-medium text-slate-900">{doc.name}</div>
