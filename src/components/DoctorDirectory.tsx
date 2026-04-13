@@ -22,6 +22,8 @@ interface Doctor {
   rating?: number;
   bmdcNumber?: string;
   experience?: string;
+  userId?: string;
+  email?: string;
 }
 
 export function DoctorDirectory() {
@@ -67,41 +69,38 @@ export function DoctorDirectory() {
   }, []);
 
   const handleBook = async () => {
-    if (!user || !bookingDoctor) return;
+    if (!user || !bookingDoctor) {
+      alert("Please login to book an appointment.");
+      return;
+    }
+    
     setBookingStatus('booking');
     try {
-      // Find the doctor's user account ID if it exists
-      let doctorUserId = bookingDoctor.id; // Default to the doc_ ID
-      
-      // If it's a manual doctor, we need to find their actual user UID via email
-      if (bookingDoctor.id.startsWith('doc_')) {
-        const email = (bookingDoctor as any).email;
-        if (email) {
-          const userQuery = query(collection(db, 'users'), where('email', '==', email.toLowerCase()));
-          const userSnapshot = await getDocs(userQuery);
-          if (!userSnapshot.empty) {
-            doctorUserId = userSnapshot.docs[0].id;
-          }
-        }
-      }
+      // Use the stored userId if available, otherwise fallback to doctor document ID
+      // This avoids restricted queries on the 'users' collection
+      const doctorUserId = bookingDoctor.userId || bookingDoctor.id;
 
-      await addDoc(collection(db, 'appointments'), {
+      const appointmentData = {
         userId: user.uid,
-        userName: user.displayName,
-        targetId: doctorUserId, // This is what the doctor dashboard listens to
+        userName: user.displayName || 'Patient',
+        targetId: doctorUserId,
         doctorName: bookingDoctor.name,
-        fee: bookingDoctor.fee,
+        fee: Number(bookingDoctor.fee),
         status: 'pending',
         date: new Date().toISOString(),
         type: 'video'
-      });
+      };
+
+      await addDoc(collection(db, 'appointments'), appointmentData);
       setBookingStatus('success');
+      
       setTimeout(() => {
         setBookingStatus('idle');
         setBookingDoctor(null);
       }, 2000);
     } catch (error) {
       console.error("Booking error:", error);
+      alert("Booking failed: " + (error instanceof Error ? error.message : "Unknown error"));
       setBookingStatus('idle');
     }
   };

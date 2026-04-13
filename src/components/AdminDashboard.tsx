@@ -134,19 +134,25 @@ export function AdminDashboard() {
     const existing = manualDoctors.find(d => d.id === id);
     
     try {
-      // 1. Update or create manual doctor record in 'doctors' collection
+      // 1. Find if a user already exists with this email to get their real UID
+      let realUserId = null;
+      const userQuery = query(collection(db, 'users'), where('email', '==', email));
+      const userSnapshot = await getDocs(userQuery);
+      if (!userSnapshot.empty) {
+        realUserId = userSnapshot.docs[0].id;
+      }
+
+      // 2. Update or create manual doctor record in 'doctors' collection
       const doctorData = { 
         ...newDoctor, 
         email,
         id,
+        userId: realUserId || `email_${cleanEmail}`, // Store the best available ID
         updatedAt: new Date().toISOString()
       };
       await setDoc(doc(db, 'doctors', id), doctorData);
 
-      // 2. Update ALL user accounts with this email to have the 'doctor' role and sync data
-      const userQuery = query(collection(db, 'users'), where('email', '==', email));
-      const userSnapshot = await getDocs(userQuery);
-      
+      // 3. Update ALL user accounts with this email to have the 'doctor' role and sync data
       const syncData = {
         role: 'doctor',
         specialty: newDoctor.specialty,
@@ -163,7 +169,7 @@ export function AdminDashboard() {
         );
         await Promise.all(updatePromises);
       } else {
-        // 3. Create a placeholder for when they login if no user exists yet
+        // 4. Create a placeholder for when they login if no user exists yet
         const manualId = `email_${cleanEmail}`;
         await setDoc(doc(db, 'users', manualId), {
           ...syncData,
