@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, query, where, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, query, where, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
 
 interface UserProfile {
@@ -28,101 +28,112 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let unsubProfile: (() => void) | null = null;
+
     const timeout = setTimeout(() => {
       if (loading) {
         setError("Connection timeout. Please check your internet or try refreshing.");
         setLoading(false);
       }
-    }, 15000); // 15 seconds timeout
+    }, 15000);
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       clearTimeout(timeout);
+      
+      // Cleanup previous profile listener if it exists
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
+      if (!firebaseUser) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
-      try {
-        if (firebaseUser) {
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userRef);
-          
+
+      // Real-time listener for the user's profile
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      unsubProfile = onSnapshot(userRef, async (userDoc) => {
+        try {
           if (!userDoc.exists()) {
-            // Check for manual entry
-            const manualRef = doc(db, 'users', `email_${firebaseUser.email}`);
+            // Check for manual entry (placeholder created by admin)
+            const cleanEmail = firebaseUser.email?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+            const manualRef = doc(db, 'users', `email_${cleanEmail}`);
+            const manualDoc = await getDoc(manualRef);
+            
             let manualData: any = null;
-            try {
-              const manualDoc = await getDoc(manualRef);
-              if (manualDoc.exists()) {
-                manualData = manualDoc.data();
-              }
-            } catch (e) {
-              console.log("No manual entry found or permission denied for manual check");
+            if (manualDoc.exists()) {
+              manualData = manualDoc.data();
             }
             
-            const role = firebaseUser.email === 'shustobd@gmail.com' ? 'admin' : (manualData?.role || 'user');
+            const isDefaultAdmin = firebaseUser.email?.toLowerCase() === 'shustobd@gmail.com';
+            const role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
+            
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName || manualData?.displayName || 'User',
-              email: firebaseUser.email,
+              email: firebaseUser.email?.toLowerCase() || null,
               photoURL: firebaseUser.photoURL || manualData?.photoURL || null,
               role: role as any
             };
             
             await setDoc(userRef, newProfile);
-            if (manualData) {
-              try {
-                await deleteDoc(manualRef);
-              } catch (e) {
-                console.log("Could not delete manual entry, but profile created");
-              }
+            if (manualDoc.exists()) {
+              await deleteDoc(manualRef).catch(console.error);
             }
-            setUser(newProfile);
+            // State will be updated by the next snapshot
           } else {
             const existingData = userDoc.data() as UserProfile;
             
-            // Proactive check for manual role updates (e.g. admin added them as doctor)
-            const manualRef = doc(db, 'users', `email_${firebaseUser.email}`);
+            // Check for manual role updates (e.g. admin added them as doctor while they were offline)
+            const cleanEmail = firebaseUser.email?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+            const manualRef = doc(db, 'users', `email_${cleanEmail}`);
             const manualDoc = await getDoc(manualRef);
             
             if (manualDoc.exists()) {
               const manualData = manualDoc.data();
               if (manualData.role && manualData.role !== existingData.role) {
                 await updateDoc(userRef, { role: manualData.role });
-                existingData.role = manualData.role;
-                try {
-                  await deleteDoc(manualRef);
-                } catch (e) {
-                  console.log("Could not delete manual entry");
-                }
+                await deleteDoc(manualRef).catch(console.error);
+                return; // Next snapshot will handle it
               }
             }
 
-            if (firebaseUser.email === 'shustobd@gmail.com' && existingData.role !== 'admin') {
+            const isDefaultAdmin = firebaseUser.email?.toLowerCase() === 'shustobd@gmail.com';
+            if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
-              setUser({ ...existingData, role: 'admin' });
             } else {
               setUser(existingData);
             }
           }
-        } else {
-          setUser(null);
+        } catch (err) {
+          console.error("Profile sync error:", err);
+          if (firebaseUser) {
+            setUser({
+              uid: firebaseUser.uid,
+              displayName: firebaseUser.displayName,
+              email: firebaseUser.email?.toLowerCase() || null,
+              photoURL: firebaseUser.photoURL,
+              role: firebaseUser.email?.toLowerCase() === 'shustobd@gmail.com' ? 'admin' : 'user'
+            });
+          }
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Auth sync error:", error);
-        // Even if Firestore fails, we can set a basic user object from firebaseUser
-        if (firebaseUser) {
-          setUser({
-            uid: firebaseUser.uid,
-            displayName: firebaseUser.displayName,
-            email: firebaseUser.email,
-            photoURL: firebaseUser.photoURL,
-            role: firebaseUser.email === 'shustobd@gmail.com' ? 'admin' : 'user'
-          });
-        }
-      } finally {
+      }, (err) => {
+        console.error("Snapshot error:", err);
         setLoading(false);
-      }
+      });
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   const login = async () => {

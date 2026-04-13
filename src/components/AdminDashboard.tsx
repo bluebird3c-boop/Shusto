@@ -148,7 +148,14 @@ export function AdminDashboard() {
       if (!userSnapshot.empty) {
         // Update every document found with this email (handles duplicates/placeholders)
         const updatePromises = userSnapshot.docs.map(userDoc => 
-          updateDoc(doc(db, 'users', userDoc.id), { role: 'doctor' })
+          updateDoc(doc(db, 'users', userDoc.id), { 
+            role: 'doctor',
+            specialty: newDoctor.specialty,
+            fee: newDoctor.fee,
+            bmdcNumber: newDoctor.bmdcNumber,
+            experience: newDoctor.experience,
+            image: newDoctor.image
+          })
         );
         await Promise.all(updatePromises);
       } else {
@@ -158,7 +165,12 @@ export function AdminDashboard() {
           email,
           role: 'doctor',
           displayName: newDoctor.name,
-          uid: manualId // placeholder uid
+          uid: manualId, // placeholder uid
+          specialty: newDoctor.specialty,
+          fee: newDoctor.fee,
+          bmdcNumber: newDoctor.bmdcNumber,
+          experience: newDoctor.experience,
+          image: newDoctor.image
         });
       }
       
@@ -267,7 +279,8 @@ export function AdminDashboard() {
 
       // Cleanup user doctors (reset role to 'user')
       for (const docItem of userDoctors) {
-        if (!docItem.bmdcNumber || !docItem.fee || docItem.fee <= 0) {
+        // Only reset if they REALLY have no data at all
+        if (!docItem.bmdcNumber && !docItem.fee) {
           await updateDoc(doc(db, 'users', docItem.id), { role: 'user' });
           usersReset++;
         }
@@ -286,7 +299,16 @@ export function AdminDashboard() {
   const updateUserRole = async (userId: string, newRole: string) => {
     try {
       const userToUpdate = users.find(u => u.uid === userId);
-      await updateDoc(doc(db, 'users', userId), { role: newRole });
+      
+      // Update user document with role and default doctor fields if needed
+      const updateData: any = { role: newRole };
+      if (newRole === 'doctor') {
+        updateData.specialty = 'General Physician';
+        updateData.fee = 500;
+        updateData.bmdcNumber = 'Pending';
+      }
+      
+      await updateDoc(doc(db, 'users', userId), updateData);
       
       // If the user being updated is a provider, we should also ensure they have a record in the respective collection
       if (userToUpdate && ['doctor', 'pharmacy', 'lab', 'physio', 'hospital', 'ambulance'].includes(newRole)) {
@@ -314,7 +336,7 @@ export function AdminDashboard() {
         }
       }
 
-      setUsers(users.map(u => u.uid === userId ? { ...u, role: newRole } : u));
+      setUsers(users.map(u => u.uid === userId ? { ...u, ...updateData } : u));
       showSuccess(`Role updated to ${newRole} successfully!`);
     } catch (error) {
       console.error("Error updating role:", error);
