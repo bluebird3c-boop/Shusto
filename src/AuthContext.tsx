@@ -62,7 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!userDoc.exists()) {
             // Check for manual entry (placeholder created by admin)
             const cleanEmail = firebaseUser.email?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-            const manualRef = doc(db, 'users', `email_${cleanEmail}`);
+            const manualId = `email_${cleanEmail}`;
+            const manualRef = doc(db, 'users', manualId);
             const manualDoc = await getDoc(manualRef);
             
             let manualData: any = null;
@@ -71,7 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             
             const isDefaultAdmin = firebaseUser.email?.toLowerCase() === 'shustobd@gmail.com';
-            const role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
+            let role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
+            
+            // Extra safety: If they have doctor-specific data, they should be a doctor
+            if (manualData?.bmdcNumber && role === 'user') {
+              role = 'doctor';
+            }
             
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
@@ -126,12 +132,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
             } else {
-              setUser(existingData);
+              // Extra safety: If they have doctor data but role is 'user', fix it
+              if ((existingData as any).bmdcNumber && existingData.role === 'user') {
+                await updateDoc(userRef, { role: 'doctor' });
+              } else {
+                setUser(existingData);
+              }
             }
           }
         } catch (err) {
           console.error("Profile sync error:", err);
-          if (firebaseUser) {
+          // If we have existing user data in state, don't overwrite it with a fallback
+          if (firebaseUser && !user) {
             setUser({
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName,
