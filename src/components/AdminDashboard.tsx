@@ -47,7 +47,7 @@ interface Provider {
 }
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'doctors' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
@@ -418,7 +418,7 @@ export function AdminDashboard() {
       <div className="space-y-6">
         {/* Row 1: Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
-          {(['users', 'doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'] as const).map((tab) => (
+          {(['users', 'patients', 'doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -427,7 +427,7 @@ export function AdminDashboard() {
                 activeTab === tab ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
               )}
             >
-              {tab.replace('Tests', ' Tests').replace('Orders', ' Orders')}
+              {tab === 'users' ? 'All Users' : tab}
             </button>
           ))}
         </div>
@@ -518,7 +518,7 @@ export function AdminDashboard() {
       )}
 
       <div className="bg-white rounded-[32px] border border-slate-100 overflow-hidden">
-        {activeTab === 'users' && (
+        {(activeTab === 'users' || activeTab === 'patients') && (
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
@@ -529,11 +529,32 @@ export function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {users.map((user) => (
+              {users
+                .filter(u => activeTab === 'users' ? true : u.role === 'user')
+                .map((user) => (
                 <tr key={user.uid} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{user.displayName}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`} 
+                        className="w-8 h-8 rounded-full border border-slate-100" 
+                        alt="" 
+                        referrerPolicy="no-referrer"
+                      />
+                      <span className="font-medium text-slate-900">{user.displayName}</span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-sm text-slate-500">{user.email}</td>
-                  <td className="px-6 py-4 capitalize text-sm font-bold text-emerald-600">{user.role}</td>
+                  <td className="px-6 py-4 capitalize">
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                      user.role === 'admin' ? "bg-red-50 text-red-600" :
+                      user.role === 'doctor' ? "bg-emerald-50 text-emerald-600" :
+                      "bg-blue-50 text-blue-600"
+                    )}>
+                      {user.role}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 flex items-center gap-2">
                     <select value={user.role} onChange={(e) => updateUserRole(user.uid, e.target.value)} className="text-sm border border-slate-200 rounded-lg px-2 py-1">
                       {roles.map(role => <option key={role.id} value={role.id}>{role.label}</option>)}

@@ -61,7 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           if (!userDoc.exists()) {
             // Check for manual entry (placeholder created by admin)
-            const cleanEmail = firebaseUser.email?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+            const email = firebaseUser.email?.toLowerCase().trim() || null;
+            const cleanEmail = email?.replace(/[^a-zA-Z0-9]/g, '_');
             const manualId = `email_${cleanEmail}`;
             const manualRef = doc(db, 'users', manualId);
             const manualDoc = await getDoc(manualRef);
@@ -71,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               manualData = manualDoc.data();
             }
             
-            const isDefaultAdmin = firebaseUser.email?.toLowerCase() === 'shustobd@gmail.com';
+            const isDefaultAdmin = email === 'shustobd@gmail.com';
             let role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
             
             // Extra safety: If they have doctor-specific data, they should be a doctor
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName || manualData?.displayName || 'User',
-              email: firebaseUser.email?.toLowerCase() || null,
+              email: email,
               photoURL: firebaseUser.photoURL || manualData?.photoURL || null,
               role: role as any,
               // Copy all additional fields from manual placeholder (BMDC, Fee, Specialty, etc.)
@@ -90,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             // Ensure UID and Email are correct even if manualData had something else
             newProfile.uid = firebaseUser.uid;
-            newProfile.email = firebaseUser.email?.toLowerCase() || null;
+            newProfile.email = email;
             
             await setDoc(userRef, newProfile);
             if (manualDoc.exists()) {
@@ -110,7 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const existingData = userDoc.data() as UserProfile;
             
             // Check for manual role updates (e.g. admin added them as doctor while they were offline)
-            const cleanEmail = firebaseUser.email?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+            const email = firebaseUser.email?.toLowerCase().trim();
+            const cleanEmail = email?.replace(/[^a-zA-Z0-9]/g, '_');
             const manualRef = doc(db, 'users', `email_${cleanEmail}`);
             const manualDoc = await getDoc(manualRef);
             
@@ -121,14 +123,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 await updateDoc(userRef, { 
                   ...manualData,
                   uid: firebaseUser.uid, // Keep original UID
-                  email: firebaseUser.email?.toLowerCase() // Keep original email
+                  email: email // Keep original email
                 });
                 await deleteDoc(manualRef).catch(console.error);
                 return; // Next snapshot will handle it
               }
             }
 
-            const isDefaultAdmin = firebaseUser.email?.toLowerCase() === 'shustobd@gmail.com';
+            const isDefaultAdmin = email === 'shustobd@gmail.com';
             if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
             } else {
