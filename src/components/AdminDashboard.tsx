@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera, RefreshCcw } from 'lucide-react';
@@ -128,49 +128,48 @@ export function AdminDashboard() {
 
   const handleAddDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const email = newDoctor.email.toLowerCase();
+    const email = newDoctor.email.toLowerCase().trim();
     const cleanEmail = email.replace(/[^a-zA-Z0-9]/g, '_');
     const id = `doc_${cleanEmail}`;
     const existing = manualDoctors.find(d => d.id === id);
     
     try {
-      // Update or create doctor record
-      await setDoc(doc(db, 'doctors', id), { 
+      // 1. Update or create manual doctor record in 'doctors' collection
+      const doctorData = { 
         ...newDoctor, 
+        email,
         id,
-        email 
-      });
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'doctors', id), doctorData);
 
-      // Update ALL user accounts with this email to have the 'doctor' role
+      // 2. Update ALL user accounts with this email to have the 'doctor' role and sync data
       const userQuery = query(collection(db, 'users'), where('email', '==', email));
       const userSnapshot = await getDocs(userQuery);
       
+      const syncData = {
+        role: 'doctor',
+        specialty: newDoctor.specialty,
+        fee: newDoctor.fee,
+        bmdcNumber: newDoctor.bmdcNumber,
+        experience: newDoctor.experience,
+        image: newDoctor.image,
+        displayName: newDoctor.name // Ensure name is synced
+      };
+
       if (!userSnapshot.empty) {
-        // Update every document found with this email (handles duplicates/placeholders)
         const updatePromises = userSnapshot.docs.map(userDoc => 
-          updateDoc(doc(db, 'users', userDoc.id), { 
-            role: 'doctor',
-            specialty: newDoctor.specialty,
-            fee: newDoctor.fee,
-            bmdcNumber: newDoctor.bmdcNumber,
-            experience: newDoctor.experience,
-            image: newDoctor.image
-          })
+          updateDoc(doc(db, 'users', userDoc.id), syncData)
         );
         await Promise.all(updatePromises);
       } else {
-        // Create a placeholder for when they login
-        const manualId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        // 3. Create a placeholder for when they login if no user exists yet
+        const manualId = `email_${cleanEmail}`;
         await setDoc(doc(db, 'users', manualId), {
+          ...syncData,
           email,
-          role: 'doctor',
-          displayName: newDoctor.name,
-          uid: manualId, // placeholder uid
-          specialty: newDoctor.specialty,
-          fee: newDoctor.fee,
-          bmdcNumber: newDoctor.bmdcNumber,
-          experience: newDoctor.experience,
-          image: newDoctor.image
+          uid: manualId,
+          createdAt: new Date().toISOString()
         });
       }
       
@@ -260,33 +259,46 @@ export function AdminDashboard() {
     }
   };
 
-  const allDoctors = Array.from(
-    new Map([...manualDoctors, ...userDoctors].map(doc => [doc.id, doc])).values()
-  );
+  // Merge manual doctors and user doctors into a single list by email to prevent duplicates
+  const allDoctors = useMemo(() => {
+    const doctorMap = new Map<string, Doctor>();
+    
+    // Process manual doctors first
+    manualDoctors.forEach(doc => {
+      if (doc.email) {
+        doctorMap.set(doc.email.toLowerCase(), doc);
+      }
+    });
+    
+    // Process user doctors - if email matches, user account data takes precedence for real-time status
+    userDoctors.forEach(uDoc => {
+      if (uDoc.email) {
+        const email = uDoc.email.toLowerCase();
+        const existing = doctorMap.get(email);
+        doctorMap.set(email, {
+          ...(existing || {}),
+          ...uDoc,
+          id: uDoc.id, // Use the real UID as the primary ID
+          isUserAccount: true
+        } as Doctor);
+      }
+    });
+    
+    return Array.from(doctorMap.values());
+  }, [manualDoctors, userDoctors]);
 
   const cleanupDoctors = async () => {
-    if (confirm('This will delete manual doctors and reset user-doctors who miss BMDC or Fee. Continue?')) {
+    if (confirm('This will only remove manual entries that have no email or name. User accounts will NOT be affected. Continue?')) {
       let manualDeleted = 0;
-      let usersReset = 0;
 
-      // Cleanup manual doctors
       for (const docItem of manualDoctors) {
-        if (!docItem.bmdcNumber || !docItem.fee || docItem.fee <= 0) {
+        if (!docItem.email || !docItem.name) {
           await deleteDoc(doc(db, 'doctors', docItem.id));
           manualDeleted++;
         }
       }
 
-      // Cleanup user doctors (reset role to 'user')
-      for (const docItem of userDoctors) {
-        // Only reset if they REALLY have no data at all
-        if (!docItem.bmdcNumber && !docItem.fee) {
-          await updateDoc(doc(db, 'users', docItem.id), { role: 'user' });
-          usersReset++;
-        }
-      }
-
-      showSuccess(`Cleanup complete! Removed ${manualDeleted} manual entries and reset ${usersReset} user roles.`);
+      showSuccess(`Cleanup complete! Removed ${manualDeleted} invalid manual entries.`);
     }
   };
 

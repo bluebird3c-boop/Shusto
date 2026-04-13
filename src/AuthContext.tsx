@@ -78,11 +78,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               displayName: firebaseUser.displayName || manualData?.displayName || 'User',
               email: firebaseUser.email?.toLowerCase() || null,
               photoURL: firebaseUser.photoURL || manualData?.photoURL || null,
-              role: role as any
+              role: role as any,
+              // Copy all additional fields from manual placeholder (BMDC, Fee, Specialty, etc.)
+              ...(manualData || {})
             };
+            // Ensure UID and Email are correct even if manualData had something else
+            newProfile.uid = firebaseUser.uid;
+            newProfile.email = firebaseUser.email?.toLowerCase() || null;
             
             await setDoc(userRef, newProfile);
             if (manualDoc.exists()) {
+              // Sync any appointments that were booked using the placeholder email ID
+              const appointmentsQuery = query(collection(db, 'appointments'), where('targetId', '==', manualId));
+              const appointmentsSnapshot = await getDocs(appointmentsQuery);
+              if (!appointmentsSnapshot.empty) {
+                const syncPromises = appointmentsSnapshot.docs.map(appDoc => 
+                  updateDoc(doc(db, 'appointments', appDoc.id), { targetId: firebaseUser.uid })
+                );
+                await Promise.all(syncPromises);
+              }
               await deleteDoc(manualRef).catch(console.error);
             }
             // State will be updated by the next snapshot
@@ -96,8 +110,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             if (manualDoc.exists()) {
               const manualData = manualDoc.data();
-              if (manualData.role && manualData.role !== existingData.role) {
-                await updateDoc(userRef, { role: manualData.role });
+              if (manualData.role && (manualData.role !== existingData.role || manualData.bmdcNumber !== (existingData as any).bmdcNumber)) {
+                // Sync all manual data to the existing user profile
+                await updateDoc(userRef, { 
+                  ...manualData,
+                  uid: firebaseUser.uid, // Keep original UID
+                  email: firebaseUser.email?.toLowerCase() // Keep original email
+                });
                 await deleteDoc(manualRef).catch(console.error);
                 return; // Next snapshot will handle it
               }
