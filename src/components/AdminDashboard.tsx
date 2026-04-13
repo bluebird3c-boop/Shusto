@@ -28,6 +28,8 @@ interface Medicine {
   category: string;
   price: number;
   image?: string;
+  generic?: string;
+  company?: string;
 }
 
 interface LabTest {
@@ -47,10 +49,11 @@ interface Provider {
 }
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'medicines' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [pharmacies, setPharmacies] = useState<Provider[]>([]);
   const [labs, setLabs] = useState<Provider[]>([]);
   const [physios, setPhysios] = useState<Provider[]>([]);
@@ -85,6 +88,10 @@ export function AdminDashboard() {
 
     const unsubDoctors = onSnapshot(collection(db, 'doctors'), (snapshot) => {
       setManualDoctors(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Doctor)));
+    });
+
+    const unsubMedicines = onSnapshot(collection(db, 'medicines'), (snapshot) => {
+      setMedicines(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Medicine)));
     });
 
     const unsubPharmacies = onSnapshot(collection(db, 'pharmacies'), (snapshot) => {
@@ -418,7 +425,7 @@ export function AdminDashboard() {
       <div className="space-y-6">
         {/* Row 1: Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
-          {(['users', 'patients', 'doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'] as const).map((tab) => (
+          {(['users', 'patients', 'doctors', 'medicines', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -569,6 +576,34 @@ export function AdminDashboard() {
                     <button onClick={() => deleteItem('users', user.uid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl" title="Delete User">
                       <Trash2 size={18} />
                     </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeTab === 'medicines' && (
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Medicine</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Category</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Price</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {medicines.map((med) => (
+                <tr key={med.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-slate-900">{med.name}</div>
+                    <div className="text-[10px] text-slate-400">{med.generic} | {med.company}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{med.category}</td>
+                  <td className="px-6 py-4 font-bold text-emerald-600">৳{med.price}</td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => deleteItem('medicines', med.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
                   </td>
                 </tr>
               ))}
