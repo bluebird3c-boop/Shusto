@@ -75,6 +75,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const isDefaultAdmin = email === 'shustobd@gmail.com';
             let role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
             
+            // Proactive Doctor Check: Check 'doctors' collection by email if not found in manual placeholder
+            if (role === 'user' && email) {
+              const docQuery = query(collection(db, 'doctors'), where('email', '==', email));
+              const docSnapshot = await getDocs(docQuery);
+              if (!docSnapshot.empty) {
+                role = 'doctor';
+                manualData = { ...manualData, ...docSnapshot.docs[0].data() };
+              }
+            }
+
             // Extra safety: If they have doctor-specific data, they should be a doctor
             if (manualData?.bmdcNumber && role === 'user') {
               role = 'doctor';
@@ -134,6 +144,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
             } else {
+              // Proactive Doctor Check for existing users
+              if (existingData.role === 'user' && email) {
+                const docQuery = query(collection(db, 'doctors'), where('email', '==', email));
+                const docSnapshot = await getDocs(docQuery);
+                if (!docSnapshot.empty) {
+                  const docData = docSnapshot.docs[0].data();
+                  await updateDoc(userRef, { 
+                    role: 'doctor',
+                    specialty: docData.specialty,
+                    fee: docData.fee,
+                    bmdcNumber: docData.bmdcNumber,
+                    experience: docData.experience
+                  });
+                  return;
+                }
+              }
+
               // Extra safety: If they have doctor data but role is 'user', fix it
               if ((existingData as any).bmdcNumber && existingData.role === 'user') {
                 await updateDoc(userRef, { role: 'doctor' });

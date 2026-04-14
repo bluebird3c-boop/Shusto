@@ -3,7 +3,6 @@ import { Search, ShoppingCart, Filter, X, Plus, Loader2, ChevronRight } from 'lu
 import { collection, query, addDoc, where, getDocs, limit, startAfter, orderBy, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { X } from 'lucide-react';
 
 interface Medicine {
   id: string;
@@ -67,7 +66,10 @@ export function MedicineStore() {
       }
 
       const snapshot = await getDocs(q);
-      const newMeds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Medicine));
+      const newMeds = snapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        return { id: doc.id, ...data } as Medicine;
+      });
       
       if (isLoadMore) {
         setMedicines(prev => [...prev, ...newMeds]);

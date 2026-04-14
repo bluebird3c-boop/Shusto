@@ -371,6 +371,53 @@ export function AdminDashboard() {
 
   const handleAddProvider = null; // Removed as requested
 
+  const syncAllRoles = async () => {
+    setLoading(true);
+    try {
+      // 1. Sync Doctors
+      const doctorsSnapshot = await getDocs(collection(db, 'doctors'));
+      for (const docSnap of doctorsSnapshot.docs) {
+        const docData = docSnap.data();
+        if (docData.email) {
+          const userQuery = query(collection(db, 'users'), where('email', '==', docData.email.toLowerCase().trim()));
+          const userSnapshot = await getDocs(userQuery);
+          for (const userDoc of userSnapshot.docs) {
+            await updateDoc(doc(db, 'users', userDoc.id), { 
+              role: 'doctor',
+              specialty: docData.specialty,
+              fee: docData.fee,
+              bmdcNumber: docData.bmdcNumber,
+              experience: docData.experience
+            });
+          }
+        }
+      }
+
+      // 2. Sync other providers
+      const providerTypes = ['pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+      for (const pType of providerTypes) {
+        const pSnapshot = await getDocs(collection(db, pType));
+        for (const pSnap of pSnapshot.docs) {
+          const pData = pSnap.data();
+          if (pData.email) {
+            const userQuery = query(collection(db, 'users'), where('email', '==', pData.email.toLowerCase().trim()));
+            const userSnapshot = await getDocs(userQuery);
+            for (const userDoc of userSnapshot.docs) {
+              await updateDoc(doc(db, 'users', userDoc.id), { role: pData.type || pType.slice(0, -1) });
+            }
+          }
+        }
+      }
+
+      showSuccess("All roles synced successfully!");
+    } catch (error) {
+      console.error("Sync error:", error);
+      alert("Failed to sync roles.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const roles = [
     { id: 'user', label: 'User', icon: UserIcon, split: 0 },
     { id: 'admin', label: 'Admin', icon: Shield, split: 0 },
@@ -441,6 +488,12 @@ export function AdminDashboard() {
 
         {/* Row 2: Add Buttons */}
         <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={syncAllRoles}
+            className="flex items-center gap-2 px-6 py-3 bg-white text-slate-600 font-bold rounded-2xl border border-slate-100 hover:bg-slate-50 transition-all text-sm"
+          >
+            <RefreshCcw size={18} /> Sync All Roles
+          </button>
           {['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
             <button 
               onClick={() => setShowAddModal(true)}

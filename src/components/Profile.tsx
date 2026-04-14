@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { User, MapPin, Camera, Save, X, Loader2 } from 'lucide-react';
+import { User, MapPin, Camera, Save, X, Loader2, RefreshCcw } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export function Profile() {
   const { user } = useAuth();
@@ -33,18 +34,60 @@ export function Profile() {
     }
   };
 
+  const syncMyRole = async () => {
+    if (!user || !user.email) return;
+    setLoading(true);
+    try {
+      const email = user.email.toLowerCase().trim();
+      const docQuery = query(collection(db, 'doctors'), where('email', '==', email));
+      const docSnapshot = await getDocs(docQuery);
+      
+      if (!docSnapshot.empty) {
+        const docData = docSnapshot.docs[0].data();
+        await updateDoc(doc(db, 'users', user.uid), { 
+          role: 'doctor',
+          specialty: docData.specialty,
+          fee: docData.fee,
+          bmdcNumber: docData.bmdcNumber,
+          experience: docData.experience
+        });
+        alert("Role synced! You are now a Doctor.");
+        window.location.reload();
+      } else {
+        alert("No doctor record found for your email. Please contact Admin.");
+      }
+    } catch (error) {
+      console.error("Sync error:", error);
+      alert("Failed to sync role.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
-        {!isEditing && (
-          <button 
-            onClick={() => setIsEditing(true)}
-            className="px-6 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all"
-          >
-            Edit Profile
-          </button>
-        )}
+        <div className="flex gap-2">
+          {user?.role === 'user' && (
+            <button 
+              onClick={syncMyRole}
+              disabled={loading}
+              className="px-4 py-2 bg-emerald-50 text-emerald-600 font-bold rounded-xl hover:bg-emerald-100 transition-all text-sm flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
+              Sync My Role
+            </button>
+          )}
+          {!isEditing && (
+            <button 
+              onClick={() => setIsEditing(true)}
+              className="px-6 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all"
+            >
+              Edit Profile
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm">
