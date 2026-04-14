@@ -17,7 +17,8 @@ interface Appointment {
 export function DoctorDashboard() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [activeCall, setActiveCall] = useState<{ channel: string; patientId: string } | null>(null);
+  const [activeCall, setActiveCall] = useState<{ id: string; channel: string; patientId: string } | null>(null);
+  const [stats, setStats] = useState({ total: 0, today: 0, completed: 0 });
 
   useEffect(() => {
     if (!user) return;
@@ -27,10 +28,18 @@ export function DoctorDashboard() {
 
     const unsubscribe = onSnapshot(qApp, (snapshot) => {
       const list: Appointment[] = [];
+      let todayCount = 0;
+      let completedCount = 0;
+      const today = new Date().toISOString().split('T')[0];
+
       snapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() } as Appointment);
+        const data = doc.data() as Appointment;
+        list.push({ id: doc.id, ...data });
+        if (data.date.startsWith(today)) todayCount++;
+        if (data.status === 'completed') completedCount++;
       });
       setAppointments(list);
+      setStats({ total: list.length, today: todayCount, completed: completedCount });
     });
 
     return () => unsubscribe();
@@ -43,15 +52,28 @@ export function DoctorDashboard() {
   const startCall = async (appointment: Appointment) => {
     const channelName = `call_${user?.uid}_${appointment.userId}`;
     
-    await addDoc(collection(db, 'callSessions'), {
+    const sessionRef = await addDoc(collection(db, 'callSessions'), {
       channelName,
       doctorId: user?.uid,
+      doctorName: user?.displayName,
       patientId: appointment.userId,
+      patientName: appointment.userName,
       status: 'waiting',
       createdAt: new Date().toISOString()
     });
 
-    setActiveCall({ channel: channelName, patientId: appointment.userId });
+    setActiveCall({ id: sessionRef.id, channel: channelName, patientId: appointment.userId });
+  };
+
+  const endCall = async () => {
+    if (activeCall) {
+      try {
+        await updateDoc(doc(db, 'callSessions', activeCall.id), { status: 'ended' });
+      } catch (e) {
+        console.error(e);
+      }
+      setActiveCall(null);
+    }
   };
 
   if (activeCall) {
@@ -59,7 +81,7 @@ export function DoctorDashboard() {
       <VideoCall 
         channelName={activeCall.channel} 
         role="host" 
-        onEnd={() => setActiveCall(null)} 
+        onEnd={endCall} 
       />
     );
   }
@@ -109,13 +131,22 @@ export function DoctorDashboard() {
                       </>
                     )}
                     {app.status === 'confirmed' && (
-                      <button 
-                        onClick={() => startCall(app)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-xl hover:bg-emerald-600 transition-all"
-                      >
-                        <Video size={18} />
-                        Start Call
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => startCall(app)}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-xl hover:bg-emerald-600 transition-all"
+                        >
+                          <Video size={18} />
+                          Start Call
+                        </button>
+                        <button 
+                          onClick={() => updateStatus(app.id, 'completed')}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                          title="Mark as Completed"
+                        >
+                          <CheckCircle size={20} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -129,15 +160,15 @@ export function DoctorDashboard() {
           <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Total Patients</span>
-              <span className="font-bold text-slate-900">124</span>
+              <span className="font-bold text-slate-900">{stats.total}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Consultations</span>
-              <span className="font-bold text-slate-900">48</span>
+              <span className="text-slate-500">Today's Appointments</span>
+              <span className="font-bold text-emerald-600">{stats.today}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Rating</span>
-              <span className="font-bold text-amber-500">4.9/5.0</span>
+              <span className="text-slate-500">Completed</span>
+              <span className="font-bold text-blue-600">{stats.completed}</span>
             </div>
           </div>
         </div>

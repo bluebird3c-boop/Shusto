@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { 
   Calendar, 
@@ -9,12 +9,40 @@ import {
   Droplets,
   TrendingUp,
   Stethoscope, 
-  ChevronRight
+  ChevronRight,
+  Video
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export function Dashboard() {
   const { user } = useAuth();
+  const [upcomingAppointment, setUpcomingAppointment] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'appointments'),
+      where('userId', '==', user.uid),
+      where('status', 'in', ['pending', 'confirmed']),
+      orderBy('date', 'asc'),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        setUpcomingAppointment({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+      } else {
+        setUpcomingAppointment(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const stats = [
     { label: 'Heart Rate', value: '72 bpm', icon: Activity, color: 'text-rose-500', bg: 'bg-rose-50' },
@@ -62,14 +90,49 @@ export function Dashboard() {
         >
           <div className="relative z-10">
             <h3 className="text-lg font-medium opacity-80 mb-2">Upcoming Appointment</h3>
-            <h2 className="text-3xl font-bold mb-6">No Appointments</h2>
             
-            <p className="text-emerald-50 mb-8">You don't have any appointments scheduled for today.</p>
+            {loading ? (
+              <div className="h-32 flex items-center">
+                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : upcomingAppointment ? (
+              <>
+                <h2 className="text-3xl font-bold mb-2">Dr. {upcomingAppointment.doctorName || 'Specialist'}</h2>
+                <div className="flex items-center gap-4 mb-6 opacity-90">
+                  <span className="flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-sm font-bold">
+                    <Calendar size={14} />
+                    {new Date(upcomingAppointment.date).toLocaleDateString()}
+                  </span>
+                  <span className="flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-sm font-bold">
+                    <Clock size={14} />
+                    {new Date(upcomingAppointment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                
+                <p className="text-emerald-50 mb-8 max-w-xs">
+                  Your consultation is {upcomingAppointment.status === 'confirmed' ? 'confirmed' : 'pending approval'}. 
+                  Please be ready 5 minutes before the time.
+                </p>
 
-            <button className="bg-white text-emerald-600 px-8 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2">
-              Book Appointment
-              <ArrowRight size={20} />
-            </button>
+                <div className="flex gap-3">
+                  {upcomingAppointment.status === 'confirmed' && (
+                    <div className="flex items-center gap-2 px-6 py-3 bg-white/20 rounded-2xl font-bold text-sm">
+                      <Video size={18} />
+                      Waiting for Doctor...
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-bold mb-6">No Appointments</h2>
+                <p className="text-emerald-50 mb-8">You don't have any appointments scheduled for today.</p>
+                <button className="bg-white text-emerald-600 px-8 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2">
+                  Book Appointment
+                  <ArrowRight size={20} />
+                </button>
+              </>
+            )}
           </div>
 
           <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 opacity-10">

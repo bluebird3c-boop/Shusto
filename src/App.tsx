@@ -19,14 +19,16 @@ import { Wallet } from './components/Wallet';
 import { Profile } from './components/Profile';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { VideoCall } from './components/VideoCall';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Phone, PhoneOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 function AppContent() {
   const { user, loading, error } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [incomingCall, setIncomingCall] = useState<{ channel: string; doctorId: string } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ id: string; channel: string; doctorId: string; doctorName?: string } | null>(null);
+  const [callAccepted, setCallAccepted] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== 'user') return;
@@ -41,9 +43,15 @@ function AppContent() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const callData = snapshot.docs[0].data();
-        setIncomingCall({ channel: callData.channelName, doctorId: callData.doctorId });
+        setIncomingCall({ 
+          id: snapshot.docs[0].id,
+          channel: callData.channelName, 
+          doctorId: callData.doctorId,
+          doctorName: callData.doctorName 
+        });
       } else {
         setIncomingCall(null);
+        setCallAccepted(false);
       }
     });
 
@@ -81,12 +89,21 @@ function AppContent() {
     return <Login />;
   }
 
-  if (incomingCall) {
+  if (incomingCall && callAccepted) {
     return (
       <VideoCall 
         channelName={incomingCall.channel} 
         role="audience" 
-        onEnd={() => setIncomingCall(null)} 
+        onEnd={async () => {
+          setIncomingCall(null);
+          setCallAccepted(false);
+          // Update session status to ended
+          try {
+            await updateDoc(doc(db, 'callSessions', incomingCall.id), { status: 'ended' });
+          } catch (e) {
+            console.error("Error ending call session:", e);
+          }
+        }} 
       />
     );
   }
@@ -126,6 +143,59 @@ function AppContent() {
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       
+      {/* Incoming Call Modal */}
+      <AnimatePresence>
+        {incomingCall && !callAccepted && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="fixed bottom-8 right-8 z-[100] w-full max-w-sm bg-slate-900 text-white rounded-[32px] p-6 shadow-2xl border border-slate-700/50 backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center animate-pulse">
+                <Phone size={32} />
+              </div>
+              <div>
+                <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-1">Incoming Call</p>
+                <h3 className="text-xl font-bold">Dr. {incomingCall.doctorName || 'Consultant'}</h3>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={async () => {
+                  try {
+                    await updateDoc(doc(db, 'callSessions', incomingCall.id), { status: 'declined' });
+                  } catch (e) {
+                    console.error(e);
+                  }
+                  setIncomingCall(null);
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-4 bg-red-500/10 text-red-500 font-bold rounded-2xl hover:bg-red-500 hover:text-white transition-all"
+              >
+                <PhoneOff size={20} />
+                Decline
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    await updateDoc(doc(db, 'callSessions', incomingCall.id), { status: 'active' });
+                    setCallAccepted(true);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                <Phone size={20} />
+                Accept
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="flex-1 lg:ml-72 p-4 md:p-8 lg:p-12 overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
           {renderContent()}

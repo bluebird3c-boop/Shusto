@@ -48,19 +48,18 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
       try {
         await agoraClient.join(APP_ID, channelName, null, null);
 
-        if (role === 'host') {
-          const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-          const videoTrack = await AgoraRTC.createCameraVideoTrack();
-          
-          setLocalAudioTrack(audioTrack);
-          setLocalVideoTrack(videoTrack);
-          
-          if (localPlayerRef.current) {
-            videoTrack.play(localPlayerRef.current);
-          }
-          
-          await agoraClient.publish([audioTrack, videoTrack]);
+        // Both host and audience (patient) should publish their tracks for a 2-way call
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        const videoTrack = await AgoraRTC.createCameraVideoTrack();
+        
+        setLocalAudioTrack(audioTrack);
+        setLocalVideoTrack(videoTrack);
+        
+        if (localPlayerRef.current) {
+          videoTrack.play(localPlayerRef.current);
         }
+        
+        await agoraClient.publish([audioTrack, videoTrack]);
       } catch (error) {
         console.error("Agora init error:", error);
       }
