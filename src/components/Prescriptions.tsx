@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Download, Calendar } from 'lucide-react';
+import { FileText, Download, Calendar, XCircle } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
@@ -10,6 +10,7 @@ interface Prescription {
   specialty: string;
   date: string;
   status: string;
+  items?: { medicine: string; dosage: string; duration: string }[];
   pdfUrl?: string;
 }
 
@@ -17,6 +18,7 @@ export function Prescriptions() {
   const { user } = useAuth();
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -83,15 +85,78 @@ export function Prescriptions() {
                     {pres.status}
                   </span>
                 </div>
-                <button className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white text-sm font-semibold rounded-2xl hover:bg-slate-800 transition-colors">
-                  <Download size={18} />
-                  Download PDF
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setSelectedPrescription(pres)}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-semibold rounded-xl hover:bg-emerald-600 transition-colors"
+                  >
+                    View Details
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
+                    <Download size={18} />
+                  </button>
+                </div>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Prescription Details Modal */}
+      {selectedPrescription && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-2xl rounded-[32px] p-8 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                  <FileText size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">{selectedPrescription.doctorName}</h2>
+                  <p className="text-slate-500">{selectedPrescription.specialty}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedPrescription(null)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                <XCircle size={24} className="text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-8">
+              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">Prescribed Medicines</h3>
+              {selectedPrescription.items && selectedPrescription.items.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedPrescription.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                      <div>
+                        <p className="font-bold text-slate-900">{item.medicine}</p>
+                        <p className="text-sm text-slate-500">{item.duration}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-emerald-600 font-bold">{item.dosage}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400 text-center py-4">No medicine details available.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setSelectedPrescription(null)}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+              >
+                Close
+              </button>
+              <button className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                <Download size={20} />
+                Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

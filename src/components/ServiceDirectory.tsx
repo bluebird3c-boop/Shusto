@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle } from 'lucide-react';
-import { collection, onSnapshot, query, addDoc } from 'firebase/firestore';
+import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle } from 'lucide-react';
+import { collection, onSnapshot, query, addDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
+import { cn } from '../lib/utils';
 
 interface ServiceProvider {
   id: string;
@@ -11,6 +12,14 @@ interface ServiceProvider {
   contact: string;
   email: string;
   type: string;
+}
+
+interface Post {
+  id: string;
+  title: string;
+  description: string;
+  price?: string;
+  image?: string;
 }
 
 interface ServiceDirectoryProps {
@@ -24,7 +33,9 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [bookingProvider, setBookingProvider] = useState<ServiceProvider | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+  const [providerPosts, setProviderPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success'>('idle');
 
   useEffect(() => {
@@ -45,23 +56,48 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
     return () => unsubscribe();
   }, [type]);
 
-  const handleBook = async () => {
-    if (!user || !bookingProvider) return;
+  useEffect(() => {
+    if (!selectedProvider) {
+      setProviderPosts([]);
+      return;
+    }
+
+    setLoadingPosts(true);
+    // Provider ID can be u_UID or just UID depending on how it was created
+    const q = query(
+      collection(db, 'posts'),
+      where('providerId', 'in', [selectedProvider.id, selectedProvider.id.replace('u_', '')])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Post[];
+      setProviderPosts(docs);
+      setLoadingPosts(false);
+    });
+
+    return () => unsubscribe();
+  }, [selectedProvider]);
+
+  const handleBook = async (post?: Post) => {
+    if (!user || !selectedProvider) return;
     setBookingStatus('booking');
     try {
       await addDoc(collection(db, 'serviceRequests'), {
         userId: user.uid,
         userName: user.displayName || user.email,
-        providerId: bookingProvider.id,
-        providerName: bookingProvider.name,
+        providerId: selectedProvider.id,
+        providerName: selectedProvider.name,
         providerType: type,
         status: 'pending',
         createdAt: new Date().toISOString(),
+        details: post ? `Interested in: ${post.title}` : 'General inquiry'
       });
       setBookingStatus('success');
       setTimeout(() => {
         setBookingStatus('idle');
-        setBookingProvider(null);
       }, 2000);
     } catch (error) {
       console.error("Booking error:", error);
@@ -131,10 +167,10 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
               </div>
 
               <button 
-                onClick={() => setBookingProvider(provider)}
+                onClick={() => setSelectedProvider(provider)}
                 className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
               >
-                Book Now
+                Show
                 <ExternalLink size={16} />
               </button>
             </div>
@@ -142,44 +178,86 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
         </div>
       )}
 
-      {/* Booking Modal */}
-      {bookingProvider && (
+      {/* Provider Details Modal */}
+      {selectedProvider && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100">
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock size={40} />
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[40px] shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
+            <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                  <MapPin size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">{selectedProvider.name}</h2>
+                  <p className="text-slate-500 text-sm">{selectedProvider.location}</p>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900">Confirm Booking</h2>
-              <p className="text-slate-500">Request service from {bookingProvider.name}</p>
+              <button onClick={() => setSelectedProvider(null)} className="p-2 hover:bg-white rounded-xl transition-colors">
+                <XCircle size={32} className="text-slate-300 hover:text-red-500" />
+              </button>
             </div>
 
-            <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-8">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Service Type</span>
-                <span className="font-bold text-slate-900 capitalize">{type}</span>
+            <div className="flex-1 overflow-y-auto p-8">
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">Available Services & Products</h3>
+                {loadingPosts ? (
+                  <div className="text-center py-12 text-slate-400">Loading services...</div>
+                ) : providerPosts.length === 0 ? (
+                  <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                    No posts or products listed by this provider yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {providerPosts.map((post) => (
+                      <div key={post.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex gap-4 hover:shadow-lg transition-all">
+                        {post.image && (
+                          <img src={post.image} alt={post.title} className="w-24 h-24 object-cover rounded-2xl flex-shrink-0" />
+                        )}
+                        <div className="flex-1 flex flex-col justify-between">
+                          <div>
+                            <h4 className="font-bold text-slate-900">{post.title}</h4>
+                            <p className="text-slate-500 text-xs line-clamp-2 mb-2">{post.description}</p>
+                          </div>
+                          <div className="flex items-center justify-between mt-auto">
+                            {post.price && (
+                              <span className="text-emerald-600 font-bold text-sm">৳{post.price}</span>
+                            )}
+                            <button 
+                              onClick={() => handleBook(post)}
+                              className="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-bold rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
+                            >
+                              Interested
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Location</span>
-                <span className="font-bold text-slate-900">{bookingProvider.location}</span>
-              </div>
-            </div>
 
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setBookingProvider(null)}
-                disabled={bookingStatus === 'booking'}
-                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleBook}
-                disabled={bookingStatus !== 'idle'}
-                className="flex-1 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
-              >
-                {bookingStatus === 'booking' ? 'Booking...' : bookingStatus === 'success' ? 'Booked!' : 'Confirm'}
-              </button>
+              <div className="bg-emerald-50 p-8 rounded-[32px] border border-emerald-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="text-center md:text-left">
+                  <h3 className="text-xl font-bold text-emerald-900 mb-1">Need something else?</h3>
+                  <p className="text-emerald-700/70 text-sm">Contact the provider directly or send a general request.</p>
+                </div>
+                <div className="flex gap-3">
+                  <a 
+                    href={`tel:${selectedProvider.contact}`}
+                    className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 transition-all shadow-sm"
+                  >
+                    <Phone size={18} />
+                    Call Now
+                  </a>
+                  <button 
+                    onClick={() => handleBook()}
+                    disabled={bookingStatus !== 'idle'}
+                    className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                  >
+                    {bookingStatus === 'booking' ? 'Sending...' : bookingStatus === 'success' ? 'Request Sent!' : 'Send Request'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
