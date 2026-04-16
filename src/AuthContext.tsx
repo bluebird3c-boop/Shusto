@@ -129,9 +129,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // State will be updated by the next snapshot
           } else {
             const existingData = userDoc.data() as UserProfile;
-            
-            // Check for manual role updates (e.g. admin added them as doctor while they were offline)
             const email = firebaseUser.email?.toLowerCase().trim();
+            
+            // FIX: Ensure email field exists for old users so Admin can find them
+            if (!existingData.email && email) {
+              await updateDoc(userRef, { email });
+              return;
+            }
+
+            // Check for manual role updates (e.g. admin added them as doctor while they were offline)
             const cleanEmail = email?.replace(/[^a-zA-Z0-9]/g, '_');
             const manualRef = doc(db, 'users', `email_${cleanEmail}`);
             const manualDoc = await getDoc(manualRef);
