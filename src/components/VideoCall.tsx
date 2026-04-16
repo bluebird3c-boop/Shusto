@@ -28,6 +28,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
   useEffect(() => {
     let agoraClient: IAgoraRTCClient;
+    let localTracks: [IMicrophoneAudioTrack, ICameraVideoTrack];
 
     const init = async () => {
       try {
@@ -35,36 +36,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         setClient(agoraClient);
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          console.log(`[Agora] User ${user.uid} published ${mediaType}`);
-          
-          const subscribeWithRetry = async (retries = 3) => {
-            try {
-              await agoraClient.subscribe(user, mediaType);
-              console.log(`[Agora] Successfully subscribed to ${user.uid} ${mediaType}`);
-              
-              if (mediaType === 'video') {
-                setRemoteUsers((prev) => {
-                  const exists = prev.find(u => u.uid === user.uid);
-                  if (exists) {
-                    return prev.map(u => u.uid === user.uid ? { ...user } : u);
-                  }
-                  return [...prev, { ...user }];
-                });
-              }
-              if (mediaType === 'audio') {
-                user.audioTrack?.play();
-              }
-            } catch (e) {
-              if (retries > 0) {
-                console.warn(`[Agora] Subscription failed, retrying... (${retries} left)`);
-                setTimeout(() => subscribeWithRetry(retries - 1), 1000);
-              } else {
-                console.error("[Agora] Subscription error after retries:", e);
-              }
-            }
-          };
-
-          subscribeWithRetry();
+          await subscribeWithRetry(agoraClient, user, mediaType);
         });
 
         agoraClient.on('user-unpublished', (user) => {
@@ -73,51 +45,59 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
 
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(e => {
-          console.error("Mic error:", e);
-          return null;
-        });
-        const videoTrack = await AgoraRTC.createCameraVideoTrack().catch(e => {
-          console.error("Camera error:", e);
-          return null;
+        // Create both tracks at once for stability
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(e => {
+          console.error("Media error:", e);
+          alert("ক্যামেরা বা মাইক্রোফোন পাওয়া যায়নি। দয়া করে ব্রাউজার পারমিশন চেক করুন।");
+          throw e;
         });
         
-        if (audioTrack) setLocalAudioTrack(audioTrack);
-        if (videoTrack) setLocalVideoTrack(videoTrack);
+        setLocalAudioTrack(audioTrack);
+        setLocalVideoTrack(videoTrack);
         
-        const tracksToPublish = [];
-        if (audioTrack) tracksToPublish.push(audioTrack);
-        if (videoTrack) tracksToPublish.push(videoTrack);
-
-        if (tracksToPublish.length > 0) {
-          await agoraClient.publish(tracksToPublish);
-        }
+        await agoraClient.publish([audioTrack, videoTrack]);
         setIsConnected(true);
       } catch (error) {
         console.error("Agora init error:", error);
       }
     };
 
+    const subscribeWithRetry = async (client: IAgoraRTCClient, user: any, mediaType: string, retries = 3) => {
+      try {
+        await client.subscribe(user, mediaType as any);
+        if (mediaType === 'video') {
+          setRemoteUsers((prev) => {
+            const exists = prev.find(u => u.uid === user.uid);
+            if (exists) return prev.map(u => u.uid === user.uid ? { ...user } : u);
+            return [...prev, { ...user }];
+          });
+        }
+        if (mediaType === 'audio') {
+          user.audioTrack?.play();
+        }
+      } catch (e) {
+        if (retries > 0) setTimeout(() => subscribeWithRetry(client, user, mediaType, retries - 1), 1000);
+      }
+    };
+
     init();
 
     return () => {
-      localAudioTrack?.stop();
-      localAudioTrack?.close();
-      localVideoTrack?.stop();
-      localVideoTrack?.close();
+      localTracks?.[0]?.stop();
+      localTracks?.[0]?.close();
+      localTracks?.[1]?.stop();
+      localTracks?.[1]?.close();
       agoraClient?.leave();
     };
   }, [channelName]);
 
-  // Handle local video playback
+  // Handle local video playback with better timing
   useEffect(() => {
     if (localVideoTrack && localPlayerRef.current) {
       localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
     }
-    return () => {
-      localVideoTrack?.stop();
-    };
-  }, [localVideoTrack, localPlayerRef.current]);
+    return () => localVideoTrack?.stop();
+  }, [localVideoTrack]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -250,13 +230,18 @@ function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (playerRef.current && user.videoTrack) {
-      user.videoTrack.play(playerRef.current, { fit: 'cover' });
-    }
-    return () => {
-      user.videoTrack?.stop();
+    const playTrack = async () => {
+      if (playerRef.current && user.videoTrack) {
+        try {
+          await user.videoTrack.play(playerRef.current, { fit: 'cover' });
+        } catch (e) {
+          console.error("Remote playback error:", e);
+        }
+      }
     };
-  }, [user.videoTrack, playerRef.current]);
+    playTrack();
+    return () => user.videoTrack?.stop();
+  }, [user.videoTrack]);
 
   return <div ref={playerRef} className="w-full h-full" />;
 }
