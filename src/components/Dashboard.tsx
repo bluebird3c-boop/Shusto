@@ -22,6 +22,7 @@ export function Dashboard() {
   const [upcomingAppointment, setUpcomingAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<{ id: string; channel: string } | null>(null);
   const [activeCall, setActiveCall] = useState<{ id: string; channel: string; patientId: string } | null>(null);
 
   useEffect(() => {
@@ -39,16 +40,27 @@ export function Dashboard() {
     const unsubscribeCalls = onSnapshot(qCalls, (snapshot) => {
       if (!snapshot.empty) {
         const callData = snapshot.docs[0].data();
-        setActiveCall({ 
+        setIncomingCall({ 
           id: snapshot.docs[0].id, 
-          channel: callData.channelName, 
-          patientId: user.uid 
+          channel: callData.channelName
         });
+      } else {
+        setIncomingCall(null);
       }
     });
 
     return () => unsubscribeCalls();
   }, [user]);
+
+  const joinCall = () => {
+    if (incomingCall) {
+      setActiveCall({ 
+        id: incomingCall.id, 
+        channel: incomingCall.channel, 
+        patientId: user!.uid 
+      });
+    }
+  };
 
   const endCall = async () => {
     if (activeCall) {
@@ -182,13 +194,21 @@ export function Dashboard() {
                 </p>
 
                 <div className="flex gap-3">
-                  {upcomingAppointment.status === 'confirmed' && (
+                  {incomingCall && (
+                    <button 
+                      onClick={joinCall}
+                      className="flex items-center gap-2 px-8 py-4 bg-white text-emerald-600 rounded-2xl font-bold hover:bg-emerald-50 shadow-lg transition-all animate-bounce"
+                    >
+                      <Video size={20} />
+                      ভিডিও কলে যোগ দিন
+                    </button>
+                  )}
+                  {!incomingCall && upcomingAppointment?.status === 'confirmed' && (
                     <div className="flex flex-col gap-4">
                       <div className="flex items-center gap-2 px-6 py-3 bg-white/20 rounded-2xl font-bold text-sm">
                         <Video size={18} />
                         ডাক্তারের জন্য অপেক্ষা করা হচ্ছে...
                       </div>
-                      <p className="text-xs opacity-70">ডাক্তার কল শুরু করলে আপনি স্বয়ংক্রিয়ভাবে যুক্ত হবেন।</p>
                     </div>
                   )}
                 </div>

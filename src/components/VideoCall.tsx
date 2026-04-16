@@ -30,33 +30,38 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     let agoraClient: IAgoraRTCClient;
 
     const init = async () => {
-      agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-      setClient(agoraClient);
-
-      agoraClient.on('user-published', async (user, mediaType) => {
-        console.log("User published:", user.uid, mediaType);
-        await agoraClient.subscribe(user, mediaType);
-        if (mediaType === 'video') {
-          setRemoteUsers((prev) => {
-            if (prev.find(u => u.uid === user.uid)) return prev;
-            return [...prev, user];
-          });
-        }
-        if (mediaType === 'audio') {
-          user.audioTrack?.play();
-        }
-      });
-
-      agoraClient.on('user-unpublished', (user) => {
-        console.log("User unpublished:", user.uid);
-        setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-      });
-
       try {
-        // Join with a random UID to avoid conflicts
+        agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        setClient(agoraClient);
+
+        agoraClient.on('user-published', async (user, mediaType) => {
+          console.log("User published:", user.uid, mediaType);
+          try {
+            await agoraClient.subscribe(user, mediaType);
+            console.log("Subscribed to user:", user.uid, mediaType);
+            
+            setRemoteUsers((prev) => {
+              const exists = prev.find(u => u.uid === user.uid);
+              if (exists) {
+                return prev.map(u => u.uid === user.uid ? { ...user } : u);
+              }
+              return [...prev, { ...user }];
+            });
+
+            if (mediaType === 'audio') {
+              user.audioTrack?.play();
+            }
+          } catch (e) {
+            console.error("Subscribe error:", e);
+          }
+        });
+
+        agoraClient.on('user-unpublished', (user) => {
+          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+        });
+
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
 
-        // Both host and audience (patient) should publish their tracks for a 2-way call
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(e => {
           console.error("Mic error:", e);
           return null;
@@ -67,12 +72,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         });
         
         if (audioTrack) setLocalAudioTrack(audioTrack);
-        if (videoTrack) {
-          setLocalVideoTrack(videoTrack);
-          if (localPlayerRef.current) {
-            videoTrack.play(localPlayerRef.current);
-          }
-        }
+        if (videoTrack) setLocalVideoTrack(videoTrack);
         
         const tracksToPublish = [];
         if (audioTrack) tracksToPublish.push(audioTrack);
@@ -97,6 +97,16 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
       agoraClient?.leave();
     };
   }, [channelName]);
+
+  // Handle local video playback
+  useEffect(() => {
+    if (localVideoTrack && localPlayerRef.current) {
+      localVideoTrack.play(localPlayerRef.current);
+    }
+    return () => {
+      localVideoTrack?.stop();
+    };
+  }, [localVideoTrack, localPlayerRef.current]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -233,14 +243,17 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   );
 }
 
-function RemotePlayer({ user }: { user: any; key?: any }) {
+function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (playerRef.current) {
-      user.videoTrack?.play(playerRef.current);
+    if (playerRef.current && user.videoTrack) {
+      user.videoTrack.play(playerRef.current);
     }
-  }, [user]);
+    return () => {
+      user.videoTrack?.stop();
+    };
+  }, [user.videoTrack, playerRef.current]);
 
   return <div ref={playerRef} className="w-full h-full" />;
 }
