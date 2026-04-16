@@ -37,6 +37,14 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         agoraClient.on('user-published', async (user, mediaType) => {
           await subscribeWithRetry(agoraClient, user, mediaType);
+          
+          setRemoteUsers((prev) => {
+            const exists = prev.find(u => u.uid === user.uid);
+            if (exists) {
+              return prev.map(u => u.uid === user.uid ? { ...user } : u);
+            }
+            return [...prev, { ...user }];
+          });
         });
 
         agoraClient.on('user-unpublished', (user) => {
@@ -45,17 +53,21 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
 
-        // Create both tracks at once for stability
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(e => {
-          console.error("Media error:", e);
-          alert("ক্যামেরা বা মাইক্রোফোন পাওয়া যায়নি। দয়া করে ব্রাউজার পারমিশন চেক করুন।");
-          throw e;
-        });
+        // Create tracks individually for better error handling
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(() => null);
+        const videoTrack = await AgoraRTC.createCameraVideoTrack({
+          optimizationMode: 'motion',
+        }).catch(() => null);
         
-        setLocalAudioTrack(audioTrack);
-        setLocalVideoTrack(videoTrack);
-        
-        await agoraClient.publish([audioTrack, videoTrack]);
+        if (audioTrack) {
+          setLocalAudioTrack(audioTrack);
+          await agoraClient.publish(audioTrack);
+        }
+        if (videoTrack) {
+          setLocalVideoTrack(videoTrack);
+          await agoraClient.publish(videoTrack);
+        }
+
         setIsConnected(true);
       } catch (error) {
         console.error("Agora init error:", error);
@@ -230,18 +242,39 @@ function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let isMounted = true;
     const playTrack = async () => {
       if (playerRef.current && user.videoTrack) {
         try {
-          await user.videoTrack.play(playerRef.current, { fit: 'cover' });
+          // Add a small delay for DOM to be ready
+          setTimeout(async () => {
+            if (isMounted && playerRef.current) {
+              await user.videoTrack.play(playerRef.current, { fit: 'cover' });
+            }
+          }, 500);
         } catch (e) {
           console.error("Remote playback error:", e);
         }
       }
     };
     playTrack();
-    return () => user.videoTrack?.stop();
-  }, [user.videoTrack]);
+    return () => {
+      isMounted = false;
+      user.videoTrack?.stop();
+    };
+  }, [user.videoTrack, playerRef.current]);
 
-  return <div ref={playerRef} className="w-full h-full" />;
+  return (
+    <div className="w-full h-full relative">
+      <div ref={playerRef} className="w-full h-full" />
+      {!user.videoTrack && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-4">
+          <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
+            <VideoOff size={32} className="text-slate-600" />
+          </div>
+          <p className="text-slate-500 text-xs font-medium">ক্যামেরা কানেক্ট হচ্ছে...</p>
+        </div>
+      )}
+    </div>
+  );
 }
