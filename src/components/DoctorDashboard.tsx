@@ -135,17 +135,17 @@ export function DoctorDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Doctor Dashboard</h1>
-        <p className="text-slate-500">Manage your patients and consultations.</p>
+        <h1 className="text-3xl font-bold text-slate-900">ডাক্তার প্যানেল</h1>
+        <p className="text-slate-500">আপনার রোগী এবং পরামর্শগুলো পরিচালনা করুন।</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <h2 className="text-xl font-bold text-slate-900">Today's Appointments</h2>
+          <h2 className="text-xl font-bold text-slate-900">আজকের অ্যাপয়েন্টমেন্ট</h2>
           <div className="space-y-4">
             {appointments.length === 0 ? (
               <div className="bg-white p-8 rounded-3xl border border-dashed border-slate-200 text-center text-slate-400">
-                No appointments scheduled for today.
+                আজ কোনো অ্যাপয়েন্টমেন্ট নির্ধারিত নেই।
               </div>
             ) : (
               appointments.map((app) => (
@@ -155,13 +155,13 @@ export function DoctorDashboard() {
                       <User size={24} />
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-900">{app.userName || 'Patient'}</h3>
+                      <h3 className="font-bold text-slate-900">{app.userName || 'রোগী'}</h3>
                       <div className="flex items-center gap-3 text-sm text-slate-400">
-                        <span className="flex items-center gap-1"><Clock size={14} /> {new Date(app.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="flex items-center gap-1"><Clock size={14} /> {new Date(app.date).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</span>
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
                           app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
-                        )}>{app.status}</span>
+                        )}>{app.status === 'confirmed' ? 'নিশ্চিত' : 'অপেক্ষমান'}</span>
                       </div>
                     </div>
                   </div>
@@ -183,14 +183,14 @@ export function DoctorDashboard() {
                           className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-xl hover:bg-emerald-600 transition-all"
                         >
                           <Video size={18} />
-                          Start Call
+                          কল শুরু করুন
                         </button>
                         <button 
                           onClick={() => setWritingPrescription(app)}
                           className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-bold rounded-xl hover:bg-blue-600 transition-all"
                         >
                           <FileText size={18} />
-                          Prescription
+                          প্রেসক্রিপশন
                         </button>
                         <button 
                           onClick={() => updateStatus(app.id, 'completed')}
@@ -209,18 +209,18 @@ export function DoctorDashboard() {
         </div>
 
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-slate-900">Quick Stats</h2>
+          <h2 className="text-xl font-bold text-slate-900">পরিসংখ্যান</h2>
           <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Total Patients</span>
+              <span className="text-slate-500">মোট রোগী</span>
               <span className="font-bold text-slate-900">{stats.total}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Today's Appointments</span>
+              <span className="text-slate-500">আজকের অ্যাপয়েন্টমেন্ট</span>
               <span className="font-bold text-emerald-600">{stats.today}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Completed</span>
+              <span className="text-slate-500">সম্পন্ন হয়েছে</span>
               <span className="font-bold text-blue-600">{stats.completed}</span>
             </div>
           </div>
@@ -233,8 +233,8 @@ export function DoctorDashboard() {
           <div className="bg-white w-full max-w-2xl rounded-[32px] p-8 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Write Prescription</h2>
-                <p className="text-slate-500">Patient: {writingPrescription.userName}</p>
+                <h2 className="text-2xl font-bold text-slate-900">প্রেসক্রিপশন লিখুন</h2>
+                <p className="text-slate-500">রোগী: {writingPrescription.userName}</p>
               </div>
               <button onClick={() => setWritingPrescription(null)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors">
                 <XCircle size={24} className="text-slate-400" />
@@ -253,7 +253,7 @@ export function DoctorDashboard() {
                     </button>
                   )}
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Medicine</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ঔষধের নাম</label>
                     <input 
                       type="text" 
                       value={item.medicine}
@@ -263,22 +263,22 @@ export function DoctorDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Dosage</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ডোজ</label>
                     <input 
                       type="text" 
                       value={item.dosage}
                       onChange={(e) => updatePrescriptionItem(index, 'dosage', e.target.value)}
-                      placeholder="1+0+1"
+                      placeholder="১+০+১"
                       className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Duration</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">সময়কাল</label>
                     <input 
                       type="text" 
                       value={item.duration}
                       onChange={(e) => updatePrescriptionItem(index, 'duration', e.target.value)}
-                      placeholder="7 days"
+                      placeholder="৭ দিন"
                       className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
@@ -289,7 +289,7 @@ export function DoctorDashboard() {
                 className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-emerald-500 hover:text-emerald-500 transition-all flex items-center justify-center gap-2"
               >
                 <Plus size={18} />
-                Add Medicine
+                ঔষধ যোগ করুন
               </button>
             </div>
 
@@ -298,14 +298,14 @@ export function DoctorDashboard() {
                 onClick={() => setWritingPrescription(null)}
                 className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
               >
-                Cancel
+                বাতিল
               </button>
               <button 
                 onClick={handleSavePrescription}
                 disabled={savingPrescription}
                 className="flex-1 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
               >
-                {savingPrescription ? 'Sending...' : 'Send Prescription'}
+                {savingPrescription ? 'পাঠানো হচ্ছে...' : 'প্রেসক্রিপশন পাঠান'}
               </button>
             </div>
           </div>
