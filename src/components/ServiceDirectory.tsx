@@ -121,7 +121,7 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder={`Search ${type}s...`}
+            placeholder={`সার্চ করুন...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-64"
@@ -170,7 +170,7 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
                 onClick={() => setSelectedProvider(provider)}
                 className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
               >
-                Show
+                দেখুন
                 <ExternalLink size={16} />
               </button>
             </div>
@@ -199,12 +199,12 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
 
             <div className="flex-1 overflow-y-auto p-8">
               <div className="mb-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Available Services & Products</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-4">উপলব্ধ সেবা ও পণ্যসমূহ</h3>
                 {loadingPosts ? (
-                  <div className="text-center py-12 text-slate-400">Loading services...</div>
+                  <div className="text-center py-12 text-slate-400">সেবা লোড হচ্ছে...</div>
                 ) : providerPosts.length === 0 ? (
                   <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-slate-400">
-                    No posts or products listed by this provider yet.
+                    এই প্রোভাইডার এখনো কোনো পোস্ট বা পণ্য তালিকাভুক্ত করেনি।
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -226,7 +226,7 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
                               onClick={() => handleBook(post)}
                               className="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-bold rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
                             >
-                              Interested
+                              আগ্রহী
                             </button>
                           </div>
                         </div>
@@ -238,8 +238,8 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
 
               <div className="bg-emerald-50 p-8 rounded-[32px] border border-emerald-100 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="text-center md:text-left">
-                  <h3 className="text-xl font-bold text-emerald-900 mb-1">Need something else?</h3>
-                  <p className="text-emerald-700/70 text-sm">Contact the provider directly or send a general request.</p>
+                  <h3 className="text-xl font-bold text-emerald-900 mb-1">অন্য কিছু প্রয়োজন?</h3>
+                  <p className="text-emerald-700/70 text-sm">সরাসরি প্রোভাইডারের সাথে যোগাযোগ করুন অথবা একটি সাধারণ অনুরোধ পাঠান।</p>
                 </div>
                 <div className="flex gap-3">
                   <a 
@@ -247,14 +247,14 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
                     className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 transition-all shadow-sm"
                   >
                     <Phone size={18} />
-                    Call Now
+                    কল করুন
                   </a>
                   <button 
                     onClick={() => handleBook()}
                     disabled={bookingStatus !== 'idle'}
                     className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                   >
-                    {bookingStatus === 'booking' ? 'Sending...' : bookingStatus === 'success' ? 'Request Sent!' : 'Send Request'}
+                    {bookingStatus === 'booking' ? 'পাঠানো হচ্ছে...' : bookingStatus === 'success' ? 'অনুরোধ পাঠানো হয়েছে!' : 'অনুরোধ পাঠান'}
                   </button>
                 </div>
               </div>

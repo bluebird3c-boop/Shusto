@@ -46,8 +46,8 @@ export function Prescriptions() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Your Prescriptions</h1>
-        <p className="text-slate-500">Access your digital prescriptions anytime, anywhere.</p>
+        <h1 className="text-3xl font-bold text-slate-900">আপনার প্রেসক্রিপশন</h1>
+        <p className="text-slate-500">যেকোনো সময়, যেকোনো জায়গা থেকে আপনার ডিজিটাল প্রেসক্রিপশন দেখুন।</p>
       </div>
 
       <div className="grid gap-4">

@@ -140,8 +140,8 @@ export function MedicineStore() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Oushud Store</h1>
-          <p className="text-slate-500">Order your medicines with home delivery.</p>
+          <h1 className="text-3xl font-bold text-slate-900">ঔষধ স্টোর</h1>
+          <p className="text-slate-500">হোম ডেলিভারি সহ আপনার প্রয়োজনীয় ঔষধ অর্ডার করুন।</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -197,7 +197,7 @@ export function MedicineStore() {
               >
                 <div className="aspect-[4/3] overflow-hidden relative">
                   <img 
-                    src={med.image || `https://picsum.photos/seed/${med.id}/400/300`} 
+                    src={med.image || `https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400`} 
                     alt={med.name} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     referrerPolicy="no-referrer"
@@ -220,7 +220,7 @@ export function MedicineStore() {
                       onClick={() => addToCart(med)}
                       className="px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors"
                     >
-                      Add to Cart
+                      কার্টে যোগ করুন
                     </button>
                   </div>
                 </div>
@@ -258,7 +258,7 @@ export function MedicineStore() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowCart(false)} />
           <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Your Cart</h2>
+              <h2 className="text-2xl font-bold text-slate-900">আপনার কার্ট</h2>
               <button onClick={() => setShowCart(false)} className="p-2 hover:bg-slate-50 rounded-xl">
                 <X size={24} className="text-slate-400" />
               </button>
@@ -268,12 +268,12 @@ export function MedicineStore() {
               {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
                   <ShoppingCart size={64} className="opacity-20" />
-                  <p>Your cart is empty</p>
+                  <p>আপনার কার্ট খালি</p>
                 </div>
               ) : (
                 cart.map(item => (
                   <div key={item.id} className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl">
-                    <img src={item.image || `https://picsum.photos/seed/${item.id}/100/100`} alt={item.name} className="w-16 h-16 rounded-xl object-cover" />
+                    <img src={item.image || `https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=100`} alt={item.name} className="w-16 h-16 rounded-xl object-cover" />
                     <div className="flex-1">
                       <h4 className="font-bold text-slate-900">{item.name}</h4>
                       <p className="text-sm text-slate-500">৳{item.price} x {item.quantity}</p>
@@ -289,7 +289,7 @@ export function MedicineStore() {
             {cart.length > 0 && (
               <div className="p-6 border-t border-slate-100 space-y-4">
                 <div className="flex justify-between items-center text-lg font-bold">
-                  <span className="text-slate-500">Total Amount</span>
+                  <span className="text-slate-500">মোট পরিমাণ</span>
                   <span className="text-emerald-600 text-2xl">৳{total}</span>
                 </div>
                 <button 
@@ -297,7 +297,7 @@ export function MedicineStore() {
                   disabled={orderStatus !== 'idle'}
                   className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
                 >
-                  {orderStatus === 'ordering' ? 'Placing Order...' : orderStatus === 'success' ? 'Order Placed!' : 'Checkout Now'}
+                  {orderStatus === 'ordering' ? 'অর্ডার করা হচ্ছে...' : orderStatus === 'success' ? 'অর্ডার সফল হয়েছে!' : 'চেকআউট করুন'}
                 </button>
               </div>
             )}

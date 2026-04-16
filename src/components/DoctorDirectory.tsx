@@ -117,7 +117,7 @@ export function DoctorDirectory() {
         <div className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-sm">
           <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
             <Clock className="text-emerald-500" size={24} />
-            My Appointments
+            আমার অ্যাপয়েন্টমেন্ট
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -149,8 +149,8 @@ export function DoctorDirectory() {
       <div className="space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Find a Doctor ({doctors.length})</h1>
-            <p className="text-slate-500">Book an appointment with top specialists.</p>
+            <h1 className="text-3xl font-bold text-slate-900">ডাক্তার খুঁজুন ({doctors.length})</h1>
+            <p className="text-slate-500">সেরা বিশেষজ্ঞ ডাক্তারদের সাথে অ্যাপয়েন্টমেন্ট বুক করুন।</p>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

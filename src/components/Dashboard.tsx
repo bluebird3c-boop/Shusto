@@ -45,9 +45,9 @@ export function Dashboard() {
   }, [user]);
 
   const stats = [
-    { label: 'Heart Rate', value: '72 bpm', icon: Activity, color: 'text-rose-500', bg: 'bg-rose-50' },
-    { label: 'Body Temp', value: '36.6 °C', icon: Thermometer, color: 'text-amber-500', bg: 'bg-amber-50' },
-    { label: 'Blood Pressure', value: '120/80', icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-50' },
+    { label: 'হার্ট রেট', value: '৭২ bpm', icon: Activity, color: 'text-rose-500', bg: 'bg-rose-50' },
+    { label: 'শরীরের তাপমাত্রা', value: '৩৬.৬ °C', icon: Thermometer, color: 'text-amber-500', bg: 'bg-amber-50' },
+    { label: 'রক্তচাপ', value: '১২০/৮০', icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-50' },
   ];
 
   return (
@@ -89,7 +89,7 @@ export function Dashboard() {
           className="bg-emerald-500 rounded-[40px] p-8 text-white relative overflow-hidden"
         >
           <div className="relative z-10">
-            <h3 className="text-lg font-medium opacity-80 mb-2">Upcoming Appointment</h3>
+            <h3 className="text-lg font-medium opacity-80 mb-2">পরবর্তী অ্যাপয়েন্টমেন্ট</h3>
             
             {loading ? (
               <div className="h-32 flex items-center">
@@ -97,38 +97,38 @@ export function Dashboard() {
               </div>
             ) : upcomingAppointment ? (
               <>
-                <h2 className="text-3xl font-bold mb-2">Dr. {upcomingAppointment.doctorName || 'Specialist'}</h2>
+                <h2 className="text-3xl font-bold mb-2">ডা. {upcomingAppointment.doctorName || 'বিশেষজ্ঞ'}</h2>
                 <div className="flex items-center gap-4 mb-6 opacity-90">
                   <span className="flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-sm font-bold">
                     <Calendar size={14} />
-                    {new Date(upcomingAppointment.date).toLocaleDateString()}
+                    {new Date(upcomingAppointment.date).toLocaleDateString('bn-BD')}
                   </span>
                   <span className="flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-sm font-bold">
                     <Clock size={14} />
-                    {new Date(upcomingAppointment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(upcomingAppointment.date).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 
                 <p className="text-emerald-50 mb-8 max-w-xs">
-                  Your consultation is {upcomingAppointment.status === 'confirmed' ? 'confirmed' : 'pending approval'}. 
-                  Please be ready 5 minutes before the time.
+                  আপনার অ্যাপয়েন্টমেন্টটি {upcomingAppointment.status === 'confirmed' ? 'নিশ্চিত করা হয়েছে' : 'অনুমোদনের অপেক্ষায় আছে'}। 
+                  অনুগ্রহ করে সময়ের ৫ মিনিট আগে প্রস্তুত থাকুন।
                 </p>
 
                 <div className="flex gap-3">
                   {upcomingAppointment.status === 'confirmed' && (
                     <div className="flex items-center gap-2 px-6 py-3 bg-white/20 rounded-2xl font-bold text-sm">
                       <Video size={18} />
-                      Waiting for Doctor...
+                      ডাক্তারের জন্য অপেক্ষা করা হচ্ছে...
                     </div>
                   )}
                 </div>
               </>
             ) : (
               <>
-                <h2 className="text-3xl font-bold mb-6">No Appointments</h2>
-                <p className="text-emerald-50 mb-8">You don't have any appointments scheduled for today.</p>
+                <h2 className="text-3xl font-bold mb-6">কোনো অ্যাপয়েন্টমেন্ট নেই</h2>
+                <p className="text-emerald-50 mb-8">আজ আপনার কোনো অ্যাপয়েন্টমেন্ট নির্ধারিত নেই।</p>
                 <button className="bg-white text-emerald-600 px-8 py-4 rounded-2xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2">
-                  Book Appointment
+                  অ্যাপয়েন্টমেন্ট বুক করুন
                   <ArrowRight size={20} />
                 </button>
               </>

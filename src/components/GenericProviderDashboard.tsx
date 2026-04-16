@@ -132,7 +132,7 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
               activeTab === 'requests' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-500 hover:bg-slate-50"
             )}
           >
-            Requests
+            অনুরোধসমূহ
           </button>
           <button 
             onClick={() => setActiveTab('posts')}
@@ -141,7 +141,7 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
               activeTab === 'posts' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-500 hover:bg-slate-50"
             )}
           >
-            Manage Posts
+            পোস্ট ম্যানেজ করুন
           </button>
         </div>
       </div>
@@ -150,26 +150,26 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-slate-100">
-              <p className="text-sm font-medium text-slate-400 mb-1">New Requests</p>
+              <p className="text-sm font-medium text-slate-400 mb-1">নতুন অনুরোধ</p>
               <p className="text-3xl font-bold text-slate-900">{requests.filter(r => r.status === 'pending').length}</p>
             </div>
             <div className="bg-white p-6 rounded-3xl border border-slate-100">
-              <p className="text-sm font-medium text-slate-400 mb-1">Confirmed</p>
+              <p className="text-sm font-medium text-slate-400 mb-1">নিশ্চিত করা হয়েছে</p>
               <p className="text-3xl font-bold text-emerald-600">{requests.filter(r => r.status === 'confirmed').length}</p>
             </div>
             <div className="bg-white p-6 rounded-3xl border border-slate-100">
-              <p className="text-sm font-medium text-slate-400 mb-1">Total Handled</p>
+              <p className="text-sm font-medium text-slate-400 mb-1">মোট অনুরোধ</p>
               <p className="text-3xl font-bold text-blue-600">{requests.length}</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-900">Incoming Requests</h2>
+            <h2 className="text-xl font-bold text-slate-900">আগত অনুরোধসমূহ</h2>
             {loading ? (
-              <div className="p-12 text-center text-slate-400">Loading requests...</div>
+              <div className="p-12 text-center text-slate-400">অনুরোধ লোড হচ্ছে...</div>
             ) : requests.length === 0 ? (
               <div className="bg-white p-12 rounded-[40px] border border-dashed border-slate-200 text-center text-slate-400">
-                No requests received yet.
+                এখনো কোনো অনুরোধ পাওয়া যায়নি।
               </div>
             ) : (
               <div className="grid gap-4">

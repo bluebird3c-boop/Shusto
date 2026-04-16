@@ -67,7 +67,7 @@ export function Profile() {
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
+        <h1 className="text-3xl font-bold text-slate-900">আমার প্রোফাইল</h1>
         <div className="flex gap-2">
           {user?.role === 'user' && (
             <button 
@@ -76,7 +76,7 @@ export function Profile() {
               className="px-4 py-2 bg-emerald-50 text-emerald-600 font-bold rounded-xl hover:bg-emerald-100 transition-all text-sm flex items-center gap-2"
             >
               {loading ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
-              Sync My Role
+              রোল সিঙ্ক করুন
             </button>
           )}
           {!isEditing && (
@@ -84,7 +84,7 @@ export function Profile() {
               onClick={() => setIsEditing(true)}
               className="px-6 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all"
             >
-              Edit Profile
+              প্রোফাইল এডিট করুন
             </button>
           )}
         </div>
@@ -122,7 +122,7 @@ export function Profile() {
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Full Name</label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">পুরো নাম</label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                   <User size={20} />
@@ -133,24 +133,24 @@ export function Profile() {
                   value={formData.displayName}
                   onChange={(e) => setFormData({...formData, displayName: e.target.value})}
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
-                  placeholder="Your Name"
+                  placeholder="আপনার নাম"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">ইমেইল ঠিকানা</label>
               <input 
                 disabled
                 type="email"
                 value={user?.email || ''}
                 className="w-full px-4 py-4 bg-slate-100 border-none rounded-2xl text-slate-500 font-medium cursor-not-allowed"
               />
-              <p className="text-[10px] text-slate-400 mt-1 ml-1">Email cannot be changed.</p>
+              <p className="text-[10px] text-slate-400 mt-1 ml-1">ইমেইল পরিবর্তন করা সম্ভব নয়।</p>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Home Address</label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">বর্তমান ঠিকানা</label>
               <div className="relative">
                 <div className="absolute left-4 top-4 text-slate-400">
                   <MapPin size={20} />
@@ -161,14 +161,14 @@ export function Profile() {
                   onChange={(e) => setFormData({...formData, address: e.target.value})}
                   rows={3}
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60 resize-none"
-                  placeholder="Enter your full address"
+                  placeholder="আপনার বর্তমান ঠিকানা লিখুন"
                 />
               </div>
             </div>
 
             {isEditing && (
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Profile Picture URL</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2">প্রোফাইল পিকচার URL</label>
                 <input 
                   type="text"
                   value={formData.photoURL}
@@ -193,7 +193,7 @@ export function Profile() {
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
                 >
                   <X size={20} />
-                  Cancel
+                  বাতিল করুন
                 </button>
                 <button 
                   onClick={handleSave}
@@ -201,7 +201,7 @@ export function Profile() {
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="animate-spin" /> : <Save size={20} />}
-                  Save Changes
+                  সেভ করুন
                 </button>
               </div>
             )}

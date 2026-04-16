@@ -117,11 +117,11 @@ function AppContent() {
         case 'medicine': return <MedicineStore />;
         case 'prescriptions': return <Prescriptions />;
         case 'doctors': return <DoctorDirectory />;
-        case 'lab': return <ServiceDirectory type="lab" title="Lab Tests & Centers" description="Find diagnostic centers and book tests near you." />;
+        case 'lab': return <ServiceDirectory type="lab" title="ল্যাব টেস্ট ও সেন্টার" description="আপনার নিকটস্থ ডায়াগনস্টিক সেন্টার খুঁজুন এবং টেস্ট বুক করুন।" />;
         case 'wallet': return <Wallet />;
-        case 'physio': return <ServiceDirectory type="physio" title="Physiotherapy Centers" description="Connect with expert physiotherapists for your recovery." />;
-        case 'hospital': return <ServiceDirectory type="hospital" title="Hospitals" description="Find top-rated hospitals and clinical centers." />;
-        case 'ambulance': return <ServiceDirectory type="ambulance" title="Ambulance Services" description="Emergency ambulance services available 24/7." />;
+        case 'physio': return <ServiceDirectory type="physio" title="ফিজিওথেরাপি সেন্টার" description="আপনার সুস্থতার জন্য বিশেষজ্ঞ ফিজিওথেরাপিস্টদের সাথে যোগাযোগ করুন।" />;
+        case 'hospital': return <ServiceDirectory type="hospital" title="হাসপাতাল" description="সেরা মানের হাসপাতাল এবং ক্লিনিকাল সেন্টার খুঁজুন।" />;
+        case 'ambulance': return <ServiceDirectory type="ambulance" title="অ্যাম্বুলেন্স সার্ভিস" description="জরুরী অ্যাম্বুলেন্স সেবা ২৪/৭ পাওয়া যাচ্ছে।" />;
         default: break;
       }
     }

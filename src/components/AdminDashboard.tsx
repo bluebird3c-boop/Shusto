@@ -481,7 +481,14 @@ export function AdminDashboard() {
                 activeTab === tab ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
               )}
             >
-              {tab === 'users' ? 'All Users' : tab}
+              {tab === 'users' ? 'সকল ইউজার' : 
+               tab === 'patients' ? 'রোগী' :
+               tab === 'doctors' ? 'ডাক্তার' :
+               tab === 'medicines' ? 'ঔষধ' :
+               tab === 'pharmacies' ? 'ফার্মেসি' :
+               tab === 'labs' ? 'ল্যাব' :
+               tab === 'physios' ? 'ফিজিওথেরাপি' :
+               tab === 'hospitals' ? 'হাসপাতাল' : 'অ্যাম্বুলেন্স'}
             </button>
           ))}
         </div>
@@ -504,12 +511,12 @@ export function AdminDashboard() {
                   : "bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100"
               )}
             >
-              <Plus size={18} /> Add {
-                activeTab === 'pharmacies' ? 'Pharmacy' :
-                activeTab === 'labs' ? 'Lab' :
-                activeTab === 'physios' ? 'Physio' :
-                activeTab === 'hospitals' ? 'Hospital' :
-                activeTab === 'ambulances' ? 'Ambulance' : 'Doctor'
+              <Plus size={18} /> {
+                activeTab === 'pharmacies' ? 'ফার্মেসি যোগ করুন' :
+                activeTab === 'labs' ? 'ল্যাব যোগ করুন' :
+                activeTab === 'physios' ? 'ফিজিওথেরাপি যোগ করুন' :
+                activeTab === 'hospitals' ? 'হাসপাতাল যোগ করুন' :
+                activeTab === 'ambulances' ? 'অ্যাম্বুলেন্স যোগ করুন' : 'ডাক্তার যোগ করুন'
               }
             </button>
           )}
