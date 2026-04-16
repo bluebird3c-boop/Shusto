@@ -153,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const isDefaultAdmin = email === 'shustobd@gmail.com';
             if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
+              return;
             } else {
               // Proactive Provider Check for existing users
               if (existingData.role === 'user' && email) {
@@ -189,9 +190,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Extra safety: If they have doctor data but role is 'user', fix it
               if ((existingData as any).bmdcNumber && existingData.role === 'user') {
                 await updateDoc(userRef, { role: 'doctor' });
-              } else {
-                setUser(existingData);
+                return;
               }
+              
+              setUser(existingData);
             }
           }
         } catch (err) {

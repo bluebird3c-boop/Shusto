@@ -167,6 +167,7 @@ export function AdminDashboard() {
         bmdcNumber: newDoctor.bmdcNumber,
         experience: newDoctor.experience,
         image: newDoctor.image,
+        photoURL: newDoctor.image, // Sync to profile photo too
         displayName: newDoctor.name // Ensure name is synced
       };
 
