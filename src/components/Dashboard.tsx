@@ -13,14 +13,53 @@ import {
   Video
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { VideoCall } from './VideoCall';
 
 export function Dashboard() {
   const { user, forceSync } = useAuth();
   const [upcomingAppointment, setUpcomingAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [activeCall, setActiveCall] = useState<{ id: string; channel: string; patientId: string } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen for incoming calls (for patients)
+    const qCalls = query(
+      collection(db, 'callSessions'),
+      where('patientId', '==', user.uid),
+      where('status', '==', 'waiting'),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+
+    const unsubscribeCalls = onSnapshot(qCalls, (snapshot) => {
+      if (!snapshot.empty) {
+        const callData = snapshot.docs[0].data();
+        setActiveCall({ 
+          id: snapshot.docs[0].id, 
+          channel: callData.channelName, 
+          patientId: user.uid 
+        });
+      }
+    });
+
+    return () => unsubscribeCalls();
+  }, [user]);
+
+  const endCall = async () => {
+    if (activeCall) {
+      try {
+        await updateDoc(doc(db, 'callSessions', activeCall.id), { status: 'ended' });
+      } catch (e) {
+        console.error(e);
+      }
+      setActiveCall(null);
+    }
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -56,6 +95,16 @@ export function Dashboard() {
     { label: 'শরীরের তাপমাত্রা', value: '৩৬.৬ °C', icon: Thermometer, color: 'text-amber-500', bg: 'bg-amber-50' },
     { label: 'রক্তচাপ', value: '১২০/৮০', icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-50' },
   ];
+
+  if (activeCall) {
+    return (
+      <VideoCall 
+        channelName={activeCall.channel} 
+        role="audience" 
+        onEnd={endCall} 
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -134,9 +183,12 @@ export function Dashboard() {
 
                 <div className="flex gap-3">
                   {upcomingAppointment.status === 'confirmed' && (
-                    <div className="flex items-center gap-2 px-6 py-3 bg-white/20 rounded-2xl font-bold text-sm">
-                      <Video size={18} />
-                      ডাক্তারের জন্য অপেক্ষা করা হচ্ছে...
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center gap-2 px-6 py-3 bg-white/20 rounded-2xl font-bold text-sm">
+                        <Video size={18} />
+                        ডাক্তারের জন্য অপেক্ষা করা হচ্ছে...
+                      </div>
+                      <p className="text-xs opacity-70">ডাক্তার কল শুরু করলে আপনি স্বয়ংক্রিয়ভাবে যুক্ত হবেন।</p>
                     </div>
                   )}
                 </div>
