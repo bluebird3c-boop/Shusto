@@ -92,7 +92,13 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
               <span className="text-2xl font-bold text-slate-900 tracking-tight block">Shusto</span>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
-                  {user?.role || 'User'}
+                  {user?.role === 'admin' ? 'অ্যাডমিন' : 
+                   user?.role === 'doctor' ? 'ডাক্তার' : 
+                   user?.role === 'pharmacy' ? 'ফার্মেসি' : 
+                   user?.role === 'physio' ? 'ফিজিওথেরাপি' : 
+                   user?.role === 'hospital' ? 'হাসপাতাল' : 
+                   user?.role === 'ambulance' ? 'অ্যাম্বুলেন্স' : 
+                   user?.role === 'lab' ? 'ল্যাব' : 'ইউজার'}
                 </span>
                 <button 
                   onClick={() => forceSync()}
@@ -144,7 +150,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
               className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all"
             >
               <LogOut size={20} />
-              Logout
+              লগআউট
             </button>
           </div>
         </div>
