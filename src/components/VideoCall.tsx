@@ -101,7 +101,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   // Handle local video playback
   useEffect(() => {
     if (localVideoTrack && localPlayerRef.current) {
-      localVideoTrack.play(localPlayerRef.current);
+      localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
     }
     return () => {
       localVideoTrack?.stop();
@@ -161,11 +161,11 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
       )}
     >
       <div className={cn(
-        "relative w-full bg-slate-800 overflow-hidden shadow-2xl border border-slate-700",
-        isFullScreen ? "h-full rounded-0" : "max-w-6xl aspect-video rounded-[40px]"
+        "relative w-full h-full bg-slate-950 overflow-hidden shadow-2xl",
+        isFullScreen ? "" : "" // Keeping it consistently full-screen immersive
       )}>
         {/* Remote Video (Main) */}
-        <div className="w-full h-full flex items-center justify-center bg-slate-950">
+        <div className="w-full h-full flex items-center justify-center">
           {remoteUsers.length > 0 ? (
             remoteUsers.map((user) => (
               <RemotePlayer key={user.uid} user={user} />
@@ -248,7 +248,7 @@ function RemotePlayer({ user }: { user: any }) {
 
   useEffect(() => {
     if (playerRef.current && user.videoTrack) {
-      user.videoTrack.play(playerRef.current);
+      user.videoTrack.play(playerRef.current, { fit: 'cover' });
     }
     return () => {
       user.videoTrack?.stop();
