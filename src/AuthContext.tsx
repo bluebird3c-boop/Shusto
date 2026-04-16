@@ -157,8 +157,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             const isDefaultAdmin = email === 'shustobd@gmail.com';
+            const isSiamDoctor = email === 'thesiambin@gmail.com';
+
             if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
+              return;
+            } else if (isSiamDoctor && existingData.role !== 'doctor') {
+              // Emergency Hardcoded Fix for Siam
+              await updateDoc(userRef, { role: 'doctor' });
               return;
             } else {
               // Proactive Provider Check for existing users
