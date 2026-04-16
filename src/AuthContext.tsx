@@ -75,13 +75,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const isDefaultAdmin = email === 'shustobd@gmail.com';
             let role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
             
-            // Proactive Doctor Check: Check 'doctors' collection by email if not found in manual placeholder
+            // Proactive Provider Check: Check all provider collections by email if not found in manual placeholder
             if (role === 'user' && email) {
-              const docQuery = query(collection(db, 'doctors'), where('email', '==', email));
-              const docSnapshot = await getDocs(docQuery);
-              if (!docSnapshot.empty) {
-                role = 'doctor';
-                manualData = { ...manualData, ...docSnapshot.docs[0].data() };
+              const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+              for (const collectionName of providerCollections) {
+                const q = query(collection(db, collectionName), where('email', '==', email));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                  const data = snapshot.docs[0].data();
+                  role = collectionName === 'doctors' ? 'doctor' : 
+                         collectionName === 'pharmacies' ? 'pharmacy' : 
+                         collectionName === 'labs' ? 'lab' : 
+                         collectionName === 'physios' ? 'physio' : 
+                         collectionName === 'hospitals' ? 'hospital' : 'ambulance';
+                  manualData = { ...manualData, ...data };
+                  break;
+                }
               }
             }
 
@@ -144,21 +153,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (isDefaultAdmin && existingData.role !== 'admin') {
               await updateDoc(userRef, { role: 'admin' });
             } else {
-              // Proactive Doctor Check for existing users
+              // Proactive Provider Check for existing users
               if (existingData.role === 'user' && email) {
-                const docQuery = query(collection(db, 'doctors'), where('email', '==', email));
-                const docSnapshot = await getDocs(docQuery);
-                if (!docSnapshot.empty) {
-                  const docData = docSnapshot.docs[0].data();
-                  await updateDoc(userRef, { 
-                    role: 'doctor',
-                    specialty: docData.specialty,
-                    fee: docData.fee,
-                    bmdcNumber: docData.bmdcNumber,
-                    experience: docData.experience
-                  });
-                  return;
+                const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+                let foundProvider = false;
+                
+                for (const collectionName of providerCollections) {
+                  const q = query(collection(db, collectionName), where('email', '==', email));
+                  const snapshot = await getDocs(q);
+                  if (!snapshot.empty) {
+                    const data = snapshot.docs[0].data();
+                    const newRole = collectionName === 'doctors' ? 'doctor' : 
+                                   collectionName === 'pharmacies' ? 'pharmacy' : 
+                                   collectionName === 'labs' ? 'lab' : 
+                                   collectionName === 'physios' ? 'physio' : 
+                                   collectionName === 'hospitals' ? 'hospital' : 'ambulance';
+                    
+                    const updateData: any = { role: newRole };
+                    if (newRole === 'doctor') {
+                      updateData.specialty = data.specialty;
+                      updateData.fee = data.fee;
+                      updateData.bmdcNumber = data.bmdcNumber;
+                      updateData.experience = data.experience;
+                    }
+                    
+                    await updateDoc(userRef, updateData);
+                    foundProvider = true;
+                    break;
+                  }
                 }
+                if (foundProvider) return;
               }
 
               // Extra safety: If they have doctor data but role is 'user', fix it

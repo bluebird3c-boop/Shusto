@@ -371,6 +371,51 @@ export function AdminDashboard() {
 
   const handleAddProvider = null; // Removed as requested
 
+  const syncUserRole = async (targetUser: UserProfile) => {
+    setLoading(true);
+    try {
+      const email = targetUser.email.toLowerCase().trim();
+      const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+      let found = false;
+
+      for (const collectionName of providerCollections) {
+        const q = query(collection(db, collectionName), where('email', '==', email));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          const data = snapshot.docs[0].data();
+          const newRole = collectionName === 'doctors' ? 'doctor' : 
+                         collectionName === 'pharmacies' ? 'pharmacy' : 
+                         collectionName === 'labs' ? 'lab' : 
+                         collectionName === 'physios' ? 'physio' : 
+                         collectionName === 'hospitals' ? 'hospital' : 'ambulance';
+          
+          const updateData: any = { role: newRole };
+          if (newRole === 'doctor') {
+            updateData.specialty = data.specialty;
+            updateData.fee = data.fee;
+            updateData.bmdcNumber = data.bmdcNumber;
+            updateData.experience = data.experience;
+          }
+          
+          await updateDoc(doc(db, 'users', targetUser.uid), updateData);
+          found = true;
+          showSuccess(`Synced ${targetUser.displayName} as ${newRole}!`);
+          break;
+        }
+      }
+
+      if (!found) {
+        alert(`No provider record found for ${email}. User remains as ${targetUser.role}.`);
+      }
+    } catch (error) {
+      console.error("Sync error:", error);
+      alert("Failed to sync user role.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const syncAllRoles = async () => {
     setLoading(true);
     try {
@@ -627,9 +672,9 @@ export function AdminDashboard() {
                       {roles.map(role => <option key={role.id} value={role.id}>{role.label}</option>)}
                     </select>
                     <button 
-                      onClick={() => updateUserRole(user.uid, user.role)} 
+                      onClick={() => syncUserRole(user)} 
                       className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl" 
-                      title="Sync/Fix Role"
+                      title="Sync/Fix Role from Provider Records"
                     >
                       <RefreshCcw size={18} />
                     </button>
