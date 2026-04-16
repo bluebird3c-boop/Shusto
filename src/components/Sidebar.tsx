@@ -15,7 +15,8 @@ import {
   Building,
   Truck,
   FlaskConical,
-  Wallet
+  Wallet,
+  RefreshCcw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -25,7 +26,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, forceSync } = useAuth();
   const [isOpen, setIsOpen] = React.useState(false);
 
   const getMenuItems = () => {
@@ -89,9 +90,18 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             </div>
             <div>
               <span className="text-2xl font-bold text-slate-900 tracking-tight block">Shusto</span>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
-                {user?.role || 'User'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
+                  {user?.role || 'User'}
+                </span>
+                <button 
+                  onClick={() => forceSync()}
+                  className="p-1 text-slate-400 hover:text-emerald-500 transition-colors"
+                  title="Sync Role"
+                >
+                  <RefreshCcw size={10} />
+                </button>
+              </div>
             </div>
           </div>
 

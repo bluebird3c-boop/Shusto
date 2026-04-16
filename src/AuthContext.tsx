@@ -18,6 +18,7 @@ interface AuthContextType {
   error: string | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  forceSync: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -228,8 +229,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
   };
 
+  const forceSync = async () => {
+    if (!auth.currentUser) return;
+    setLoading(true);
+    try {
+      const email = auth.currentUser.email?.toLowerCase().trim();
+      if (!email) return;
+
+      const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+      for (const collectionName of providerCollections) {
+        const q = query(collection(db, collectionName), where('email', '==', email));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const data = snapshot.docs[0].data();
+          const newRole = collectionName === 'doctors' ? 'doctor' : 
+                         collectionName === 'pharmacies' ? 'pharmacy' : 
+                         collectionName === 'labs' ? 'lab' : 
+                         collectionName === 'physios' ? 'physio' : 
+                         collectionName === 'hospitals' ? 'hospital' : 'ambulance';
+          
+          const updateData: any = { role: newRole };
+          if (newRole === 'doctor') {
+            updateData.specialty = data.specialty;
+            updateData.fee = data.fee;
+            updateData.bmdcNumber = data.bmdcNumber;
+            updateData.experience = data.experience;
+          }
+          
+          await updateDoc(doc(db, 'users', auth.currentUser.uid), updateData);
+          break;
+        }
+      }
+    } catch (err) {
+      console.error("Force sync error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, logout, forceSync }}>
       {children}
     </AuthContext.Provider>
   );

@@ -17,9 +17,16 @@ import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/f
 import { db } from '../firebase';
 
 export function Dashboard() {
-  const { user } = useAuth();
+  const { user, forceSync } = useAuth();
   const [upcomingAppointment, setUpcomingAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    await forceSync();
+    setSyncing(false);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -55,7 +62,18 @@ export function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Welcome back, {user?.displayName?.split(' ')[0]}!</h1>
-          <p className="text-slate-500">Here's what's happening with your health today.</p>
+          <p className="text-slate-500 flex items-center gap-2">
+            Here's what's happening with your health today.
+            {user?.role === 'user' && (
+              <button 
+                onClick={handleSync}
+                disabled={syncing}
+                className="text-xs text-emerald-600 hover:underline flex items-center gap-1"
+              >
+                {syncing ? 'Syncing...' : '(Not a Doctor? Sync Role)'}
+              </button>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
           <Calendar size={18} className="text-slate-400" />

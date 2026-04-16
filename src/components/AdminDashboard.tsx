@@ -419,42 +419,40 @@ export function AdminDashboard() {
   const syncAllRoles = async () => {
     setLoading(true);
     try {
-      // 1. Sync Doctors
-      const doctorsSnapshot = await getDocs(collection(db, 'doctors'));
-      for (const docSnap of doctorsSnapshot.docs) {
-        const docData = docSnap.data();
-        if (docData.email) {
-          const userQuery = query(collection(db, 'users'), where('email', '==', docData.email.toLowerCase().trim()));
-          const userSnapshot = await getDocs(userQuery);
-          for (const userDoc of userSnapshot.docs) {
-            await updateDoc(doc(db, 'users', userDoc.id), { 
-              role: 'doctor',
-              specialty: docData.specialty,
-              fee: docData.fee,
-              bmdcNumber: docData.bmdcNumber,
-              experience: docData.experience
-            });
-          }
-        }
-      }
+      const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+      let totalSynced = 0;
 
-      // 2. Sync other providers
-      const providerTypes = ['pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
-      for (const pType of providerTypes) {
-        const pSnapshot = await getDocs(collection(db, pType));
-        for (const pSnap of pSnapshot.docs) {
+      for (const collectionName of providerCollections) {
+        const snapshot = await getDocs(collection(db, collectionName));
+        for (const pSnap of snapshot.docs) {
           const pData = pSnap.data();
           if (pData.email) {
-            const userQuery = query(collection(db, 'users'), where('email', '==', pData.email.toLowerCase().trim()));
+            const email = pData.email.toLowerCase().trim();
+            const userQuery = query(collection(db, 'users'), where('email', '==', email));
             const userSnapshot = await getDocs(userQuery);
+            
+            const newRole = collectionName === 'doctors' ? 'doctor' : 
+                           collectionName === 'pharmacies' ? 'pharmacy' : 
+                           collectionName === 'labs' ? 'lab' : 
+                           collectionName === 'physios' ? 'physio' : 
+                           collectionName === 'hospitals' ? 'hospital' : 'ambulance';
+
             for (const userDoc of userSnapshot.docs) {
-              await updateDoc(doc(db, 'users', userDoc.id), { role: pData.type || pType.slice(0, -1) });
+              const updateData: any = { role: newRole };
+              if (newRole === 'doctor') {
+                updateData.specialty = pData.specialty;
+                updateData.fee = pData.fee;
+                updateData.bmdcNumber = pData.bmdcNumber;
+                updateData.experience = pData.experience;
+              }
+              await updateDoc(doc(db, 'users', userDoc.id), updateData);
+              totalSynced++;
             }
           }
         }
       }
 
-      showSuccess("All roles synced successfully!");
+      showSuccess(`Successfully synced ${totalSynced} user roles!`);
     } catch (error) {
       console.error("Sync error:", error);
       alert("Failed to sync roles.");
@@ -542,9 +540,11 @@ export function AdminDashboard() {
         <div className="flex flex-wrap gap-3">
           <button 
             onClick={syncAllRoles}
-            className="flex items-center gap-2 px-6 py-3 bg-white text-slate-600 font-bold rounded-2xl border border-slate-100 hover:bg-slate-50 transition-all text-sm"
+            disabled={loading}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-2xl border border-emerald-100 hover:bg-emerald-100 transition-all text-sm shadow-sm"
           >
-            <RefreshCcw size={18} /> Sync All Roles
+            <RefreshCcw size={18} className={cn(loading && "animate-spin")} />
+            সকল রোল সিঙ্ক করুন
           </button>
           {['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
             <button 
@@ -782,11 +782,20 @@ export function AdminDashboard() {
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500">{doc.specialty}</td>
                   <td className="px-6 py-4 font-bold text-emerald-600">৳{doc.fee}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 flex items-center gap-2">
                     {(doc as any).isUserAccount ? (
                       <p className="text-[10px] text-slate-400 italic">Manage in Users tab</p>
                     ) : (
-                      <button onClick={() => deleteItem('doctors', doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                      <>
+                        <button 
+                          onClick={() => syncUserRole({ uid: doc.userId || '', email: doc.email, displayName: doc.name, role: 'user' } as any)} 
+                          className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl" 
+                          title="Force Sync to User Account"
+                        >
+                          <RefreshCcw size={18} />
+                        </button>
+                        <button onClick={() => deleteItem('doctors', doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                      </>
                     )}
                   </td>
                 </tr>
