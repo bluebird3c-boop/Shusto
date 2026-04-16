@@ -35,25 +35,36 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         setClient(agoraClient);
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          console.log("User published:", user.uid, mediaType);
-          try {
-            await agoraClient.subscribe(user, mediaType);
-            console.log("Subscribed to user:", user.uid, mediaType);
-            
-            setRemoteUsers((prev) => {
-              const exists = prev.find(u => u.uid === user.uid);
-              if (exists) {
-                return prev.map(u => u.uid === user.uid ? { ...user } : u);
+          console.log(`[Agora] User ${user.uid} published ${mediaType}`);
+          
+          const subscribeWithRetry = async (retries = 3) => {
+            try {
+              await agoraClient.subscribe(user, mediaType);
+              console.log(`[Agora] Successfully subscribed to ${user.uid} ${mediaType}`);
+              
+              if (mediaType === 'video') {
+                setRemoteUsers((prev) => {
+                  const exists = prev.find(u => u.uid === user.uid);
+                  if (exists) {
+                    return prev.map(u => u.uid === user.uid ? { ...user } : u);
+                  }
+                  return [...prev, { ...user }];
+                });
               }
-              return [...prev, { ...user }];
-            });
-
-            if (mediaType === 'audio') {
-              user.audioTrack?.play();
+              if (mediaType === 'audio') {
+                user.audioTrack?.play();
+              }
+            } catch (e) {
+              if (retries > 0) {
+                console.warn(`[Agora] Subscription failed, retrying... (${retries} left)`);
+                setTimeout(() => subscribeWithRetry(retries - 1), 1000);
+              } else {
+                console.error("[Agora] Subscription error after retries:", e);
+              }
             }
-          } catch (e) {
-            console.error("Subscribe error:", e);
-          }
+          };
+
+          subscribeWithRetry();
         });
 
         agoraClient.on('user-unpublished', (user) => {
@@ -155,88 +166,80 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   return (
     <div 
       ref={containerRef}
-      className={cn(
-        "fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center transition-all",
-        isFullScreen ? "p-0" : "p-4"
-      )}
+      className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden"
     >
-      <div className={cn(
-        "relative w-full h-full bg-slate-950 overflow-hidden shadow-2xl",
-        isFullScreen ? "" : "" // Keeping it consistently full-screen immersive
-      )}>
-        {/* Remote Video (Main) */}
-        <div className="w-full h-full flex items-center justify-center">
+      <div className="relative w-full h-full bg-black overflow-hidden">
+        {/* Remote Video (Main - Background) */}
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
           {remoteUsers.length > 0 ? (
             remoteUsers.map((user) => (
               <RemotePlayer key={user.uid} user={user} />
             ))
           ) : (
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                <Video size={40} className="text-slate-500" />
+            <div className="text-center space-y-6 z-10 px-6">
+              <div className="w-24 h-24 bg-slate-800/50 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-pulse border border-white/10">
+                <Video size={48} className="text-slate-500" />
               </div>
-              <p className="text-slate-400 font-medium">অন্য অংশগ্রহণকারীর জন্য অপেক্ষা করা হচ্ছে...</p>
-              <p className="text-slate-600 text-xs">চ্যানেল: {channelName}</p>
+              <div className="space-y-2">
+                <p className="text-white text-lg font-semibold">কানেক্ট হচ্ছে...</p>
+                <p className="text-slate-400 text-sm">আপনার ডাক্তার বা রোগীর জন্য অপেক্ষা করা হচ্ছে। অনুগ্রহ করে লাইন কাটবেন না।</p>
+              </div>
+              <div className="inline-block px-4 py-2 bg-white/5 rounded-lg border border-white/5">
+                <p className="text-slate-500 text-[10px] uppercase tracking-widest font-mono">Channel ID: {channelName}</p>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Local Video (PIP) */}
+        {/* Local Video (PIP - Floating) */}
         <div 
           ref={localPlayerRef}
-          className={cn(
-            "absolute aspect-video bg-slate-700 rounded-3xl overflow-hidden border-2 border-slate-600 shadow-xl z-10 transition-all",
-            isFullScreen ? "bottom-24 right-8 w-48 md:w-72" : "bottom-8 right-8 w-48 md:w-64"
-          )}
+          className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move"
         />
 
-        {/* Controls Overlay */}
-        <div className={cn(
-          "absolute left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-900/80 backdrop-blur-xl px-8 py-4 rounded-[32px] border border-slate-700/50 shadow-2xl z-20 transition-all",
-          isFullScreen ? "bottom-8 scale-110" : "bottom-8"
-        )}>
+        {/* Top Info Overlay */}
+        <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-40">
+          <div className={cn("w-2 h-2 rounded-full animate-pulse", isConnected ? "bg-emerald-500" : "bg-amber-500")} />
+          <span className="text-white text-xs font-medium uppercase tracking-wider">লাইভ</span>
+        </div>
+
+        {/* Controls Overlay (Bottom) */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 bg-black/60 backdrop-blur-2xl px-8 py-5 rounded-[40px] border border-white/10 shadow-2xl z-50">
           <button 
             onClick={toggleMic}
             className={cn(
-              "p-4 rounded-2xl transition-all",
-              micOn ? "bg-slate-800 text-white hover:bg-slate-700" : "bg-red-500 text-white hover:bg-red-600"
+              "w-12 h-12 flex items-center justify-center rounded-full transition-all",
+              micOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500 text-white"
             )}
           >
-            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+            {micOn ? <Mic size={20} /> : <MicOff size={20} />}
           </button>
           
           <button 
             onClick={toggleVideo}
             className={cn(
-              "p-4 rounded-2xl transition-all",
-              videoOn ? "bg-slate-800 text-white hover:bg-slate-700" : "bg-red-500 text-white hover:bg-red-600"
+              "w-12 h-12 flex items-center justify-center rounded-full transition-all",
+              videoOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500 text-white"
             )}
           >
-            {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
+            {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
           </button>
 
           <button 
             onClick={handleEndCall}
-            className="p-4 bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+            className="w-14 h-14 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-xl shadow-red-500/40"
           >
             <PhoneOff size={24} />
           </button>
 
-          <div className="w-px h-8 bg-slate-700 mx-2" />
+          <div className="w-px h-8 bg-white/10 mx-1" />
 
           <button 
             onClick={toggleFullScreen}
-            className="p-4 bg-slate-800 text-white rounded-2xl hover:bg-slate-700 transition-all"
+            className="w-12 h-12 flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
           >
-            {isFullScreen ? <Minimize size={24} /> : <Maximize size={24} />}
+            {isFullScreen ? <Minimize size={20} /> : <Maximize size={20} />}
           </button>
-        </div>
-
-        {/* Info Overlay */}
-        <div className="absolute top-8 left-8 flex items-center gap-3 bg-slate-900/50 backdrop-blur-md px-4 py-2 rounded-full border border-slate-700/30">
-          <div className={cn("w-2 h-2 rounded-full animate-pulse", isConnected ? "bg-emerald-500" : "bg-amber-500")} />
-          <span className="text-white text-sm font-medium">লাইভ কনসালটেশন</span>
-          {!isConnected && <span className="text-amber-400 text-xs ml-2">কানেক্ট হচ্ছে...</span>}
         </div>
       </div>
     </div>
