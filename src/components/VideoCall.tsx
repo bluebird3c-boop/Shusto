@@ -41,13 +41,15 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
             console.log(`[Agora] Subscribed to ${user.uid} ${mediaType}`);
             
             setRemoteUsers((prev) => {
-              const hasUser = prev.find(u => u.uid === user.uid);
-              if (hasUser) {
-                // Update the user object to trigger a re-render so videoTrack is recognized
-                return prev.map(u => u.uid === user.uid ? { ...user } : u);
-              }
-              // Add new user to the list
-              return [...prev, { ...user }];
+              // Ensure we create a new list and new user objects to trigger re-renders
+              const others = prev.filter(u => u.uid !== user.uid);
+              const updatedUser = { 
+                ...user, 
+                uid: user.uid, 
+                videoTrack: user.videoTrack, 
+                audioTrack: user.audioTrack 
+              };
+              return [...others, updatedUser];
             });
 
             if (mediaType === 'audio') {
@@ -261,10 +263,15 @@ function RemotePlayer({ user }: { user: any }) {
 
   useEffect(() => {
     if (playerRef.current && user.videoTrack) {
+      console.log(`[Agora] Playing remote video for user: ${user.uid}`);
       user.videoTrack.play(playerRef.current, { fit: 'cover' });
     }
-    return () => user.videoTrack?.stop();
-  }, [user.videoTrack]);
+    return () => {
+      try {
+        user.videoTrack?.stop();
+      } catch (e) {}
+    };
+  }, [user.videoTrack, user.uid]);
 
   return <div ref={playerRef} className="w-full h-full" />;
 }
