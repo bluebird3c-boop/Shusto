@@ -12,9 +12,6 @@ interface VideoCallProps {
 // @ts-ignore
 const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "e66b5e13d30b4844b6f95ad4b9cd7572";
 
-// Setting log level to Warning to avoid console spam but show issues
-AgoraRTC.setLogLevel(2);
-
 export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [client, setClient] = useState<IAgoraRTCClient | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
@@ -25,7 +22,6 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [videoOn, setVideoOn] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [audioBlocked, setAudioBlocked] = useState(false);
 
   const localPlayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,25 +34,41 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
     const init = async () => {
       try {
-        console.log("Initializing Agora with ID:", APP_ID);
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         setClient(agoraClient);
 
-        // 1. First trigger permissions by creating tracks immediately
-        console.log("Requesting permissions...");
-        const [audioTrack, videoTrack] = await Promise.all([
-          AgoraRTC.createMicrophoneAudioTrack().catch(e => {
-            console.warn("Microphone access failed/denied:", e);
-            return null;
-          }),
-          AgoraRTC.createCameraVideoTrack({
-            encoderConfig: "720p_1"
-          }).catch(e => {
-            console.warn("Camera access failed/denied:", e);
-            return null;
-          })
-        ]);
+        agoraClient.on('user-published', async (user, mediaType) => {
+          await agoraClient.subscribe(user, mediaType);
+          console.log("Subscribed:", user.uid, mediaType);
+          
+          if (mediaType === 'video') {
+            setRemoteUsers((prev) => {
+              if (prev.find(u => u.uid === user.uid)) return prev;
+              return [...prev, user];
+            });
+          }
+          if (mediaType === 'audio') {
+            user.audioTrack?.play();
+          }
+        });
 
+        agoraClient.on('user-unpublished', (user, mediaType) => {
+          if (mediaType === 'video') {
+            setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+          }
+        });
+
+        await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
+
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(e => {
+          console.error("Mic error:", e);
+          return null;
+        });
+        const videoTrack = await AgoraRTC.createCameraVideoTrack().catch(e => {
+          console.error("Camera error:", e);
+          return null;
+        });
+        
         if (audioTrack) {
           setLocalAudioTrack(audioTrack);
           localAudioTrackRef.current = audioTrack;
@@ -65,51 +77,13 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           setLocalVideoTrack(videoTrack);
           localVideoTrackRef.current = videoTrack;
         }
-
-        // 2. Set up event listeners
-        agoraClient.on('user-published', async (user, mediaType) => {
-          console.log("Remote signal - Published:", user.uid, mediaType);
-          try {
-            await agoraClient.subscribe(user, mediaType);
-            console.log("Remote signal - Subscribed:", user.uid, mediaType);
-            
-            setRemoteUsers((prev) => {
-              const others = prev.filter(u => u.uid !== user.uid);
-              return [...others, user];
-            });
-
-            if (mediaType === 'audio') {
-              user.audioTrack?.play().catch(e => {
-                if (e.message?.includes("not allow")) {
-                  console.warn("Audio autoplay blocked by browser");
-                  setAudioBlocked(true);
-                }
-              });
-            }
-          } catch (e) {
-            console.error("Subscription failed:", e);
-          }
-        });
-
-        agoraClient.on('user-unpublished', (user, mediaType) => {
-          console.log("Remote signal - Unpublished:", user.uid, mediaType);
-          if (mediaType === 'video') {
-            setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-          }
-        });
-
-        // 3. Join the channel after requesting tracks
-        await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
-        console.log("Joined channel successfully:", channelName);
         
-        // 4. Publish tracks if available
         const tracksToPublish = [];
         if (audioTrack) tracksToPublish.push(audioTrack);
         if (videoTrack) tracksToPublish.push(videoTrack);
 
         if (tracksToPublish.length > 0) {
           await agoraClient.publish(tracksToPublish);
-          console.log("Tracks published successfully");
         }
         setIsConnected(true);
       } catch (error) {
@@ -130,44 +104,10 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
   // Handle local video playback
   useEffect(() => {
-    let isMounted = true;
-    let retryCount = 0;
-    const MAX_RETRIES = 10;
-
-    const playLocal = async () => {
-      // Small check to ensure we only try if we have a track and a ref
-      if (!localVideoTrack || !localPlayerRef.current) {
-        if (retryCount < MAX_RETRIES && isMounted) {
-          retryCount++;
-          setTimeout(playLocal, 500);
-        }
-        return;
-      }
-
-      console.log("Playing local track (Self-View)...");
-      try {
-        localVideoTrack.stop();
-        if (isMounted) {
-          await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
-          console.log("Local self-view playing");
-        }
-      } catch (e) {
-        console.error("Local self-view play error:", e);
-        if (retryCount < MAX_RETRIES && isMounted) {
-          retryCount++;
-          setTimeout(playLocal, 1000);
-        }
-      }
-    };
-    
-    const timer = setTimeout(playLocal, 500);
-    
-    return () => {
-      isMounted = false;
-      clearTimeout(timer);
-      localVideoTrack?.stop();
-    };
-  }, [localVideoTrack]); // Refined dependencies to trigger correctly
+    if (localVideoTrack && localPlayerRef.current) {
+      localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
+    }
+  }, [localVideoTrack]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -205,19 +145,12 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   };
 
   const handleEndCall = () => {
-    localAudioTrackRef.current?.stop();
-    localAudioTrackRef.current?.close();
-    localVideoTrackRef.current?.stop();
-    localVideoTrackRef.current?.close();
+    localAudioTrack?.stop();
+    localAudioTrack?.close();
+    localVideoTrack?.stop();
+    localVideoTrack?.close();
     client?.leave();
     onEnd();
-  };
-
-  const resumeAudio = () => {
-    remoteUsers.forEach(user => {
-      user.audioTrack?.play();
-    });
-    setAudioBlocked(false);
   };
 
   return (
@@ -245,41 +178,8 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         {/* Local Video (PIP - Floating) */}
         <div 
           ref={localPlayerRef}
-          className={cn(
-            "absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] bg-slate-900 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl transition-all",
-            localVideoTrack ? "z-[100] scale-100 opacity-100" : "z-0 scale-95 opacity-0"
-          )}
-          style={{ touchAction: 'none' }}
+          className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move"
         />
-
-        {/* Audio Blocked Warning */}
-        {audioBlocked && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[80] animate-bounce">
-            <button 
-              onClick={resumeAudio}
-              className="bg-emerald-500 text-white px-6 py-2 rounded-full font-bold shadow-lg flex items-center gap-2"
-            >
-              <Mic size={18} /> সাউন্ড চালু করুন
-            </button>
-          </div>
-        )}
-
-        {/* Permission Notice */}
-        {isConnected && !localVideoTrack && (
-          <div className="absolute inset-0 z-[60] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center">
-             <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-4">
-               <VideoOff size={32} />
-             </div>
-             <h2 className="text-xl font-bold text-white mb-2">ক্যামেরা পারমিশন প্রয়োজন</h2>
-             <p className="text-slate-400 max-w-xs mb-6">ভিডিও কল শুরু করার জন্য আপনার ব্রাউজারে ক্যামেরা এবং মাইক্রোফোনের অনুমতি দিন।</p>
-             <button 
-               onClick={() => window.location.reload()}
-               className="px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold"
-             >
-               রিফ্রেশ করুন
-             </button>
-          </div>
-        )}
 
         {/* Top Info Overlay */}
         <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-40">
@@ -334,36 +234,10 @@ function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
-
-    const playTrack = async () => {
-      if (playerRef.current && user.videoTrack) {
-        console.log("Playing remote track for:", user.uid);
-        try {
-          user.videoTrack.stop();
-          if (isMounted) {
-            await user.videoTrack.play(playerRef.current, { fit: 'cover' });
-          }
-        } catch (e) {
-          console.error("Remote video play error:", e);
-          if (retryCount < MAX_RETRIES) {
-            retryCount++;
-            setTimeout(playTrack, 1000);
-          }
-        }
-      }
-    };
-
-    const timer = setTimeout(playTrack, 500);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timer);
-      user.videoTrack?.stop();
-    };
-  }, [user.videoTrack, user.uid]);
+    if (playerRef.current && user.videoTrack) {
+      user.videoTrack.play(playerRef.current, { fit: 'cover' });
+    }
+  }, [user.videoTrack]);
 
   return <div ref={playerRef} className="w-full h-full" />;
 }
