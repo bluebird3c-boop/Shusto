@@ -37,16 +37,41 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
     const init = async () => {
       try {
+        console.log("Initializing Agora with ID:", APP_ID);
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         setClient(agoraClient);
 
+        // 1. First trigger permissions by creating tracks immediately
+        console.log("Requesting permissions...");
+        const [audioTrack, videoTrack] = await Promise.all([
+          AgoraRTC.createMicrophoneAudioTrack().catch(e => {
+            console.warn("Microphone access failed/denied:", e);
+            return null;
+          }),
+          AgoraRTC.createCameraVideoTrack({
+            encoderConfig: "720p_1"
+          }).catch(e => {
+            console.warn("Camera access failed/denied:", e);
+            return null;
+          })
+        ]);
+
+        if (audioTrack) {
+          setLocalAudioTrack(audioTrack);
+          localAudioTrackRef.current = audioTrack;
+        }
+        if (videoTrack) {
+          setLocalVideoTrack(videoTrack);
+          localVideoTrackRef.current = videoTrack;
+        }
+
+        // 2. Set up event listeners
         agoraClient.on('user-published', async (user, mediaType) => {
           console.log("Remote signal - Published:", user.uid, mediaType);
           try {
             await agoraClient.subscribe(user, mediaType);
             console.log("Remote signal - Subscribed:", user.uid, mediaType);
             
-            // Always update users on any subscribe to ensure we have the latest track references
             setRemoteUsers((prev) => {
               const others = prev.filter(u => u.uid !== user.uid);
               return [...others, user];
@@ -67,37 +92,18 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           }
         });
 
+        // 3. Join the channel after requesting tracks
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
-        console.log("Joined channel:", channelName);
-
-        // Attempt to create tracks - this should trigger the permission prompt
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(e => {
-          console.warn("Microphone access failed/denied:", e);
-          return null;
-        });
-
-        const videoTrack = await AgoraRTC.createCameraVideoTrack({
-          encoderConfig: "720p_1"
-        }).catch(e => {
-          console.warn("Camera access failed/denied:", e);
-          return null;
-        });
+        console.log("Joined channel successfully:", channelName);
         
-        if (audioTrack) {
-          setLocalAudioTrack(audioTrack);
-          localAudioTrackRef.current = audioTrack;
-        }
-        if (videoTrack) {
-          setLocalVideoTrack(videoTrack);
-          localVideoTrackRef.current = videoTrack;
-        }
-        
+        // 4. Publish tracks if available
         const tracksToPublish = [];
         if (audioTrack) tracksToPublish.push(audioTrack);
         if (videoTrack) tracksToPublish.push(videoTrack);
 
         if (tracksToPublish.length > 0) {
           await agoraClient.publish(tracksToPublish);
+          console.log("Tracks published successfully");
         }
         setIsConnected(true);
       } catch (error) {
