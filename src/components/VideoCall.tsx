@@ -12,8 +12,8 @@ interface VideoCallProps {
 // @ts-ignore
 const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "e66b5e13d30b4844b6f95ad4b9cd7572";
 
-// Setting log level for easier debugging in dev console
-AgoraRTC.setLogLevel(1);
+// Setting log level to Warning to avoid console spam but show issues
+AgoraRTC.setLogLevel(2);
 
 export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [client, setClient] = useState<IAgoraRTCClient | null>(null);
@@ -41,21 +41,27 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         setClient(agoraClient);
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          await agoraClient.subscribe(user, mediaType);
-          console.log("Subscribed:", user.uid, mediaType);
-          
-          if (mediaType === 'video') {
+          console.log("Remote signal - Published:", user.uid, mediaType);
+          try {
+            await agoraClient.subscribe(user, mediaType);
+            console.log("Remote signal - Subscribed:", user.uid, mediaType);
+            
+            // Always update users on any subscribe to ensure we have the latest track references
             setRemoteUsers((prev) => {
-              if (prev.find(u => u.uid === user.uid)) return prev;
-              return [...prev, user];
+              const others = prev.filter(u => u.uid !== user.uid);
+              return [...others, user];
             });
-          }
-          if (mediaType === 'audio') {
-            user.audioTrack?.play();
+
+            if (mediaType === 'audio') {
+              user.audioTrack?.play();
+            }
+          } catch (e) {
+            console.error("Subscription failed:", e);
           }
         });
 
         agoraClient.on('user-unpublished', (user, mediaType) => {
+          console.log("Remote signal - Unpublished:", user.uid, mediaType);
           if (mediaType === 'video') {
             setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
           }
@@ -112,16 +118,36 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
   // Handle local video playback
   useEffect(() => {
+    let isMounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
     const playLocal = async () => {
       if (localVideoTrack && localPlayerRef.current) {
+        console.log("Playing local track...");
         try {
-          await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
+          localVideoTrack.stop();
+          if (isMounted) {
+            await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
+          }
         } catch (e) {
-          console.error("Local video play error:", e);
+          console.error("Local play error:", e);
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            setTimeout(playLocal, 1000);
+          }
         }
       }
     };
-    playLocal();
+    
+    // Add a slight delay to ensure DOM is fully ready
+    const timer = setTimeout(playLocal, 500);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      localVideoTrack?.stop();
+    };
   }, [localVideoTrack, localPlayerRef.current]);
 
   const toggleFullScreen = () => {
@@ -191,10 +217,13 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         </div>
 
         {/* Local Video (PIP - Floating) */}
-        <div 
-          ref={localPlayerRef}
-          className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move"
-        />
+        {localVideoTrack && (
+          <div 
+            ref={localPlayerRef}
+            className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl z-[70] transition-all"
+            style={{ touchAction: 'none' }}
+          />
+        )}
 
         {/* Permission Notice */}
         {isConnected && !localVideoTrack && (
@@ -266,10 +295,36 @@ function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (playerRef.current && user.videoTrack) {
-      user.videoTrack.play(playerRef.current, { fit: 'cover' });
-    }
-  }, [user.videoTrack]);
+    let isMounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
+    const playTrack = async () => {
+      if (playerRef.current && user.videoTrack) {
+        console.log("Playing remote track for:", user.uid);
+        try {
+          user.videoTrack.stop();
+          if (isMounted) {
+            await user.videoTrack.play(playerRef.current, { fit: 'cover' });
+          }
+        } catch (e) {
+          console.error("Remote video play error:", e);
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            setTimeout(playTrack, 1000);
+          }
+        }
+      }
+    };
+
+    const timer = setTimeout(playTrack, 500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      user.videoTrack?.stop();
+    };
+  }, [user.videoTrack, user.uid]);
 
   return <div ref={playerRef} className="w-full h-full" />;
 }
