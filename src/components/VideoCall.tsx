@@ -12,6 +12,9 @@ interface VideoCallProps {
 // @ts-ignore
 const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "e66b5e13d30b4844b6f95ad4b9cd7572";
 
+// Setting log level for easier debugging in dev console
+AgoraRTC.setLogLevel(1);
+
 export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [client, setClient] = useState<IAgoraRTCClient | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
@@ -59,13 +62,18 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         });
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
+        console.log("Joined channel:", channelName);
 
+        // Attempt to create tracks - this should trigger the permission prompt
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(e => {
-          console.error("Mic error:", e);
+          console.warn("Microphone access failed/denied:", e);
           return null;
         });
-        const videoTrack = await AgoraRTC.createCameraVideoTrack().catch(e => {
-          console.error("Camera error:", e);
+
+        const videoTrack = await AgoraRTC.createCameraVideoTrack({
+          encoderConfig: "720p_1"
+        }).catch(e => {
+          console.warn("Camera access failed/denied:", e);
           return null;
         });
         
@@ -104,10 +112,17 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
   // Handle local video playback
   useEffect(() => {
-    if (localVideoTrack && localPlayerRef.current) {
-      localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
-    }
-  }, [localVideoTrack]);
+    const playLocal = async () => {
+      if (localVideoTrack && localPlayerRef.current) {
+        try {
+          await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
+        } catch (e) {
+          console.error("Local video play error:", e);
+        }
+      }
+    };
+    playLocal();
+  }, [localVideoTrack, localPlayerRef.current]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -180,6 +195,23 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           ref={localPlayerRef}
           className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move"
         />
+
+        {/* Permission Notice */}
+        {isConnected && !localVideoTrack && (
+          <div className="absolute inset-0 z-[60] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center">
+             <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-4">
+               <VideoOff size={32} />
+             </div>
+             <h2 className="text-xl font-bold text-white mb-2">ক্যামেরা পারমিশন প্রয়োজন</h2>
+             <p className="text-slate-400 max-w-xs mb-6">ভিডিও কল শুরু করার জন্য আপনার ব্রাউজারে ক্যামেরা এবং মাইক্রোফোনের অনুমতি দিন।</p>
+             <button 
+               onClick={() => window.location.reload()}
+               className="px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold"
+             >
+               রিফ্রেশ করুন
+             </button>
+          </div>
+        )}
 
         {/* Top Info Overlay */}
         <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-40">
