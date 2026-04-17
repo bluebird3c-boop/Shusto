@@ -18,12 +18,11 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
   
-  const remoteUsersRef = useRef<any[]>([]);
-  
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
   const [permissionError, setPermissionError] = useState<{
     type: 'camera' | 'microphone' | 'both' | 'general';
     message: string;
@@ -32,6 +31,8 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
   const localPlayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  const remoteUsersRef = useRef<Map<string, any>>(new Map());
 
   const localVideoTrackRef = useRef<ICameraVideoTrack | null>(null);
   const localAudioTrackRef = useRef<IMicrophoneAudioTrack | null>(null);
@@ -42,75 +43,78 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     const init = async () => {
       setIsInitializing(true);
       setPermissionError(null);
+      setDebugInfo(`Joining channel: ${channelName}...`);
+      
       try {
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         setClient(agoraClient);
 
-        // Track users who join the room immediately
         agoraClient.on('user-joined', (user) => {
-          console.log("User joined room:", user.uid);
-          const newUser = { uid: user.uid, videoTrack: user.videoTrack, audioTrack: user.audioTrack };
-          remoteUsersRef.current = [...remoteUsersRef.current, newUser];
-          setRemoteUsers([...remoteUsersRef.current]);
+          console.log("Remote user joined:", user.uid);
+          remoteUsersRef.current.set(user.uid.toString(), { 
+            uid: user.uid, 
+            videoTrack: user.videoTrack, 
+            audioTrack: user.audioTrack 
+          });
+          setRemoteUsers(Array.from(remoteUsersRef.current.values()));
+          setDebugInfo(`User ${user.uid} joined.`);
         });
 
         agoraClient.on('user-left', (user) => {
-          console.log("User left room:", user.uid);
-          remoteUsersRef.current = remoteUsersRef.current.filter(u => u.uid !== user.uid);
-          setRemoteUsers([...remoteUsersRef.current]);
+          console.log("Remote user left:", user.uid);
+          remoteUsersRef.current.delete(user.uid.toString());
+          setRemoteUsers(Array.from(remoteUsersRef.current.values()));
+          setDebugInfo(`User ${user.uid} left.`);
         });
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          console.log("User published track:", user.uid, mediaType);
           try {
             await agoraClient.subscribe(user, mediaType);
-            console.log("Subscribed successfully:", user.uid, mediaType);
+            console.log("Subscribed to", user.uid, mediaType);
             
-            // Update the user tracks in our list
-            remoteUsersRef.current = remoteUsersRef.current.map(u => {
-              if (u.uid === user.uid) {
-                return { ...u, videoTrack: user.videoTrack, audioTrack: user.audioTrack };
-              }
-              return u;
+            const existing = remoteUsersRef.current.get(user.uid.toString()) || { uid: user.uid };
+            remoteUsersRef.current.set(user.uid.toString(), {
+              ...existing,
+              videoTrack: mediaType === 'video' ? user.videoTrack : existing.videoTrack,
+              audioTrack: mediaType === 'audio' ? user.audioTrack : existing.audioTrack
             });
             
-            // If user joined before they published (which is normal)
-            if (!remoteUsersRef.current.find(u => u.uid === user.uid)) {
-              remoteUsersRef.current.push({ uid: user.uid, videoTrack: user.videoTrack, audioTrack: user.audioTrack });
-            }
-
-            setRemoteUsers([...remoteUsersRef.current]);
+            setRemoteUsers(Array.from(remoteUsersRef.current.values()));
 
             if (mediaType === 'audio') {
               user.audioTrack?.play();
             }
           } catch (e) {
             console.error("Subscribe error:", e);
+            setDebugInfo(`Sub error: ${e instanceof Error ? e.message : 'Unknown'}`);
           }
         });
 
         agoraClient.on('user-unpublished', (user, mediaType) => {
-          console.log("User unpublished track:", user.uid, mediaType);
-          remoteUsersRef.current = remoteUsersRef.current.map(u => {
-            if (u.uid === user.uid) {
-              return { 
-                ...u, 
-                videoTrack: mediaType === 'video' ? undefined : u.videoTrack,
-                audioTrack: mediaType === 'audio' ? undefined : u.audioTrack 
-              };
-            }
-            return u;
-          });
-          setRemoteUsers([...remoteUsersRef.current]);
+          const existing = remoteUsersRef.current.get(user.uid.toString());
+          if (existing) {
+            remoteUsersRef.current.set(user.uid.toString(), {
+              ...existing,
+              videoTrack: mediaType === 'video' ? undefined : existing.videoTrack,
+              audioTrack: mediaType === 'audio' ? undefined : existing.audioTrack
+            });
+            setRemoteUsers(Array.from(remoteUsersRef.current.values()));
+          }
         });
 
-        await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
+        // Join the channel
+        const uid = await agoraClient.join(APP_ID, channelName, null, null);
+        console.log("Joined channel as UID:", uid);
+        setDebugInfo(`Connected as ${uid}. Waiting for others...`);
 
+        // Create tracks
         let audioTrack: IMicrophoneAudioTrack | null = null;
         let videoTrack: ICameraVideoTrack | null = null;
 
         try {
           audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          setLocalAudioTrack(audioTrack);
+          localAudioTrackRef.current = audioTrack;
         } catch (e: any) {
           console.error("Mic error:", e);
           if (e.code === 'PERMISSION_DENIED') {
@@ -119,7 +123,11 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         }
 
         try {
-          videoTrack = await AgoraRTC.createCameraVideoTrack();
+          videoTrack = await AgoraRTC.createCameraVideoTrack({
+            encoderConfig: "720p_1",
+          });
+          setLocalVideoTrack(videoTrack);
+          localVideoTrackRef.current = videoTrack;
         } catch (e: any) {
           console.error("Camera error:", e);
           if (e.code === 'PERMISSION_DENIED') {
@@ -130,15 +138,6 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           }
         }
         
-        if (audioTrack) {
-          setLocalAudioTrack(audioTrack);
-          localAudioTrackRef.current = audioTrack;
-        }
-        if (videoTrack) {
-          setLocalVideoTrack(videoTrack);
-          localVideoTrackRef.current = videoTrack;
-        }
-        
         const tracksToPublish = [];
         if (audioTrack) tracksToPublish.push(audioTrack);
         if (videoTrack) tracksToPublish.push(videoTrack);
@@ -146,10 +145,11 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         if (tracksToPublish.length > 0) {
           await agoraClient.publish(tracksToPublish);
         }
+        
         setIsConnected(true);
       } catch (error: any) {
         console.error("Agora init error:", error);
-        setPermissionError({ type: 'general', message: 'ভিডিও কল শুরু করতে সমস্যা হচ্ছে। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করুন।' });
+        setPermissionError({ type: 'general', message: `ভিডিও কল শুরু করতে সমস্যা হচ্ছে। (${error.message || 'Unknown'})` });
       } finally {
         setIsInitializing(false);
       }
@@ -171,7 +171,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     if (localVideoTrack && localPlayerRef.current) {
       localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
     }
-  }, [localVideoTrack]);
+  }, [localVideoTrack, localPlayerRef]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -289,6 +289,10 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
                 <Video size={40} className="text-slate-600" />
               </div>
               <p className="text-slate-400 font-medium px-6 text-center">অন্য অংশগ্রহণকারীর জন্য অপেক্ষা করা হচ্ছে...</p>
+              <div className="bg-slate-900/50 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-800">
+                <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-1">Diagnostic Info</p>
+                <p className="text-slate-300 text-xs font-mono">{debugInfo}</p>
+              </div>
             </div>
           )}
         </div>
@@ -296,8 +300,17 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         {/* Local Video (PIP - Floating) */}
         <div 
           ref={localPlayerRef}
-          className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move"
-        />
+          className={cn(
+            "absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move",
+            !videoOn && "hidden"
+          )}
+        >
+          {!videoOn && (
+            <div className="w-full h-full flex items-center justify-center bg-slate-900/80">
+              <VideoOff size={20} className="text-slate-600" />
+            </div>
+          )}
+        </div>
 
         {/* Top Info Overlay */}
         <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-40">
