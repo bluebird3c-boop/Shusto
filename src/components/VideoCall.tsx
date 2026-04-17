@@ -26,6 +26,9 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const localPlayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const localVideoTrackRef = useRef<ICameraVideoTrack | null>(null);
+  const localAudioTrackRef = useRef<IMicrophoneAudioTrack | null>(null);
+
   useEffect(() => {
     let agoraClient: IAgoraRTCClient;
 
@@ -35,29 +38,24 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         setClient(agoraClient);
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          console.log("User published:", user.uid, mediaType);
-          try {
-            await agoraClient.subscribe(user, mediaType);
-            console.log("Subscribed to user:", user.uid, mediaType);
-            
+          await agoraClient.subscribe(user, mediaType);
+          console.log("Subscribed:", user.uid, mediaType);
+          
+          if (mediaType === 'video') {
             setRemoteUsers((prev) => {
-              const exists = prev.find(u => u.uid === user.uid);
-              if (exists) {
-                return prev.map(u => u.uid === user.uid ? { ...user } : u);
-              }
-              return [...prev, { ...user }];
+              if (prev.find(u => u.uid === user.uid)) return prev;
+              return [...prev, user];
             });
-
-            if (mediaType === 'audio') {
-              user.audioTrack?.play();
-            }
-          } catch (e) {
-            console.error("Subscribe error:", e);
+          }
+          if (mediaType === 'audio') {
+            user.audioTrack?.play();
           }
         });
 
-        agoraClient.on('user-unpublished', (user) => {
-          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+        agoraClient.on('user-unpublished', (user, mediaType) => {
+          if (mediaType === 'video') {
+            setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+          }
         });
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
@@ -71,8 +69,14 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           return null;
         });
         
-        if (audioTrack) setLocalAudioTrack(audioTrack);
-        if (videoTrack) setLocalVideoTrack(videoTrack);
+        if (audioTrack) {
+          setLocalAudioTrack(audioTrack);
+          localAudioTrackRef.current = audioTrack;
+        }
+        if (videoTrack) {
+          setLocalVideoTrack(videoTrack);
+          localVideoTrackRef.current = videoTrack;
+        }
         
         const tracksToPublish = [];
         if (audioTrack) tracksToPublish.push(audioTrack);
@@ -90,10 +94,10 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     init();
 
     return () => {
-      localAudioTrack?.stop();
-      localAudioTrack?.close();
-      localVideoTrack?.stop();
-      localVideoTrack?.close();
+      localAudioTrackRef.current?.stop();
+      localAudioTrackRef.current?.close();
+      localVideoTrackRef.current?.stop();
+      localVideoTrackRef.current?.close();
       agoraClient?.leave();
     };
   }, [channelName]);
@@ -103,10 +107,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     if (localVideoTrack && localPlayerRef.current) {
       localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
     }
-    return () => {
-      localVideoTrack?.stop();
-    };
-  }, [localVideoTrack, localPlayerRef.current]);
+  }, [localVideoTrack]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -159,18 +160,17 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     >
       <div className="relative w-full h-full bg-black overflow-hidden">
         {/* Remote Video (Main - Background) */}
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
+        <div className="absolute inset-0 bg-black">
           {remoteUsers.length > 0 ? (
-            remoteUsers.map((user) => (
-              <RemotePlayer key={user.uid} user={user} />
-            ))
+            <div className="w-full h-full">
+              <RemotePlayer user={remoteUsers[0]} />
+            </div>
           ) : (
-            <div className="text-center space-y-4 z-10">
-              <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto animate-pulse">
+            <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
+              <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
                 <Video size={40} className="text-slate-600" />
               </div>
-              <p className="text-slate-400 font-medium">অন্য অংশগ্রহণকারীর জন্য অপেক্ষা করা হচ্ছে...</p>
-              <p className="text-slate-700 text-xs">চ্যানেল: {channelName}</p>
+              <p className="text-slate-400 font-medium px-6 text-center">অন্য অংশগ্রহণকারীর জন্য অপেক্ষা করা হচ্ছে...</p>
             </div>
           )}
         </div>
@@ -237,10 +237,7 @@ function RemotePlayer({ user }: { user: any }) {
     if (playerRef.current && user.videoTrack) {
       user.videoTrack.play(playerRef.current, { fit: 'cover' });
     }
-    return () => {
-      user.videoTrack?.stop();
-    };
-  }, [user.videoTrack, playerRef.current]);
+  }, [user.videoTrack]);
 
   return <div ref={playerRef} className="w-full h-full" />;
 }
