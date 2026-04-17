@@ -25,6 +25,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [videoOn, setVideoOn] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   const localPlayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,7 +79,12 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
             });
 
             if (mediaType === 'audio') {
-              user.audioTrack?.play();
+              user.audioTrack?.play().catch(e => {
+                if (e.message?.includes("not allow")) {
+                  console.warn("Audio autoplay blocked by browser");
+                  setAudioBlocked(true);
+                }
+              });
             }
           } catch (e) {
             console.error("Subscription failed:", e);
@@ -126,38 +132,42 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 10;
 
     const playLocal = async () => {
-      if (localVideoTrack && localPlayerRef.current) {
-        console.log("Playing local track (Self-View)...");
-        try {
-          // Important for Agora: stop track before playing in a new container
-          localVideoTrack.stop();
-          if (isMounted) {
-            // Internal Agora play method handles creating a <video> with proper attributes
-            // like autoplay, playsinline, and muted for local tracks.
-            await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
-          }
-        } catch (e) {
-          console.error("Local self-view play error:", e);
-          if (retryCount < MAX_RETRIES) {
-            retryCount++;
-            setTimeout(playLocal, 800);
-          }
+      // Small check to ensure we only try if we have a track and a ref
+      if (!localVideoTrack || !localPlayerRef.current) {
+        if (retryCount < MAX_RETRIES && isMounted) {
+          retryCount++;
+          setTimeout(playLocal, 500);
+        }
+        return;
+      }
+
+      console.log("Playing local track (Self-View)...");
+      try {
+        localVideoTrack.stop();
+        if (isMounted) {
+          await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
+          console.log("Local self-view playing");
+        }
+      } catch (e) {
+        console.error("Local self-view play error:", e);
+        if (retryCount < MAX_RETRIES && isMounted) {
+          retryCount++;
+          setTimeout(playLocal, 1000);
         }
       }
     };
     
-    // Slight delay to ensure React has fully rendered the container div
-    const timer = setTimeout(playLocal, 300);
+    const timer = setTimeout(playLocal, 500);
     
     return () => {
       isMounted = false;
       clearTimeout(timer);
       localVideoTrack?.stop();
     };
-  }, [localVideoTrack, localPlayerRef.current]);
+  }, [localVideoTrack]); // Refined dependencies to trigger correctly
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
@@ -195,12 +205,19 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   };
 
   const handleEndCall = () => {
-    localAudioTrack?.stop();
-    localAudioTrack?.close();
-    localVideoTrack?.stop();
-    localVideoTrack?.close();
+    localAudioTrackRef.current?.stop();
+    localAudioTrackRef.current?.close();
+    localVideoTrackRef.current?.stop();
+    localVideoTrackRef.current?.close();
     client?.leave();
     onEnd();
+  };
+
+  const resumeAudio = () => {
+    remoteUsers.forEach(user => {
+      user.audioTrack?.play();
+    });
+    setAudioBlocked(false);
   };
 
   return (
@@ -234,6 +251,18 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           )}
           style={{ touchAction: 'none' }}
         />
+
+        {/* Audio Blocked Warning */}
+        {audioBlocked && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[80] animate-bounce">
+            <button 
+              onClick={resumeAudio}
+              className="bg-emerald-500 text-white px-6 py-2 rounded-full font-bold shadow-lg flex items-center gap-2"
+            >
+              <Mic size={18} /> সাউন্ড চালু করুন
+            </button>
+          </div>
+        )}
 
         {/* Permission Notice */}
         {isConnected && !localVideoTrack && (
