@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize, AlertCircle, Camera, ShieldAlert, FileText, Plus, Trash2, XCircle, CheckCircle } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize, AlertCircle, Camera, ShieldAlert, FileText, Plus, Trash2, XCircle, CheckCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
@@ -430,89 +430,116 @@ export function VideoCall({ channelName, role, onEnd, patientId, patientName }: 
 
         {/* Prescription Modal (Inside Video Call) */}
         {showPrescriptionModal && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-lg rounded-[32px] p-6 shadow-2xl border border-slate-100 max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">প্রেসক্রিপশন দিন</h2>
-                  <p className="text-sm text-slate-500">রোগী: {patientName}</p>
+          <div className="absolute inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <div className="bg-white w-full max-w-lg rounded-[40px] p-8 shadow-2xl border border-slate-100 max-h-[85vh] overflow-y-auto relative">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight">প্রেসক্রিপশন দিন</h2>
+                    <p className="text-sm text-slate-500 font-medium">রোগী: <span className="text-slate-900 font-bold">{patientName}</span></p>
+                  </div>
                 </div>
-                <button onClick={() => setShowPrescriptionModal(false)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors">
-                  <XCircle size={20} className="text-slate-400" />
+                <button onClick={() => setShowPrescriptionModal(false)} className="p-2 hover:bg-slate-50 rounded-2xl transition-colors">
+                  <XCircle size={24} className="text-slate-300" />
                 </button>
               </div>
 
               {prescriptionSuccess ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                    <CheckCircle size={40} />
+                <div className="text-center py-16 animate-in fade-in zoom-in duration-500">
+                  <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <CheckCircle size={48} className="animate-bounce" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900">পাঠানো হয়েছে!</h3>
-                  <p className="text-slate-500">প্রেসক্রিপশনটি রোগীর কাছে পৌঁছে গেছে।</p>
+                  <h3 className="text-2xl font-black text-slate-900 mb-2">সফলভাবে পাঠানো হয়েছে!</h3>
+                  <p className="text-slate-500 font-medium px-8">প্রেসক্রিপশনটি রোগীর ডিজিটাল ফাইলে যুক্ত হয়ে গেছে।</p>
                 </div>
               ) : (
                 <>
-                  <div className="space-y-3 mb-6">
+                  <div className="space-y-4 mb-8">
+                    <div className="flex items-center gap-2 mb-2">
+                       <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                       <span className="text-[10px] uppercase font-black text-slate-400 tracking-[0.2em]">Medicines / ঔষধসমূহ</span>
+                    </div>
+                    
                     {prescriptionItems.map((item, index) => (
-                      <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl relative">
+                      <div key={index} className="group p-4 bg-slate-50 rounded-[24px] border border-slate-100 relative hover:bg-white hover:border-emerald-100 hover:shadow-lg hover:shadow-emerald-900/5 transition-all duration-300">
                         {prescriptionItems.length > 1 && (
                           <button 
                             onClick={() => removePrescriptionItem(index)}
-                            className="absolute -top-2 -right-2 p-1 bg-red-100 text-red-500 rounded-full hover:bg-red-200 transition-colors"
+                            className="absolute -top-2 -right-2 p-1.5 bg-white text-red-500 rounded-full shadow-md border border-slate-100 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={14} />
                           </button>
                         )}
-                        <div>
-                          <input 
-                            type="text" 
-                            value={item.medicine}
-                            onChange={(e) => updatePrescriptionItem(index, 'medicine', e.target.value)}
-                            placeholder="ঔষধ"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20"
-                          />
-                        </div>
-                        <div>
-                          <input 
-                            type="text" 
-                            value={item.dosage}
-                            onChange={(e) => updatePrescriptionItem(index, 'dosage', e.target.value)}
-                            placeholder="ডোজ"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20"
-                          />
-                        </div>
-                        <div>
-                          <input 
-                            type="text" 
-                            value={item.duration}
-                            onChange={(e) => updatePrescriptionItem(index, 'duration', e.target.value)}
-                            placeholder="দিন"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20"
-                          />
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">ঔষধের নাম</p>
+                            <input 
+                              type="text" 
+                              value={item.medicine}
+                              onChange={(e) => updatePrescriptionItem(index, 'medicine', e.target.value)}
+                              placeholder="e.g. Napa Extend / Seclo 20"
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all outline-none"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">ডোজ (১+০+১)</p>
+                               <input 
+                                type="text" 
+                                value={item.dosage}
+                                onChange={(e) => updatePrescriptionItem(index, 'dosage', e.target.value)}
+                                placeholder="Dosage"
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all outline-none"
+                              />
+                            </div>
+                            <div>
+                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">সময়কাল</p>
+                               <input 
+                                type="text" 
+                                value={item.duration}
+                                onChange={(e) => updatePrescriptionItem(index, 'duration', e.target.value)}
+                                placeholder="Days"
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all outline-none"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
                     <button 
                       onClick={addPrescriptionItem}
-                      className="w-full py-2 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-emerald-500 hover:text-emerald-500 transition-all flex items-center justify-center gap-2 text-sm"
+                      className="w-full py-4 border-2 border-dashed border-slate-200 rounded-[24px] text-slate-400 font-black hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50 transition-all flex items-center justify-center gap-3 text-sm group"
                     >
-                      <Plus size={16} /> ঔষধ যোগ করুন
+                      <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" /> ঔষধ যোগ করুন
                     </button>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={() => setShowPrescriptionModal(false)}
-                      className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all text-sm"
+                      className="py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all text-sm"
                     >
                       বাতিল
                     </button>
                     <button 
                       onClick={handleSavePrescription}
                       disabled={savingPrescription}
-                      className="flex-1 py-3 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 text-sm"
+                      className="py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 shadow-xl shadow-slate-900/20 transition-all disabled:opacity-50 text-sm flex items-center justify-center gap-2"
                     >
-                      {savingPrescription ? 'পাঠানো হচ্ছে...' : 'পাঠিয়ে দিন'}
+                      {savingPrescription ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          প্রসেসিং...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={18} />
+                          পাঠিয়ে দিন
+                        </>
+                      )}
                     </button>
                   </div>
                 </>
