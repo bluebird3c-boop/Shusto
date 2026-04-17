@@ -23,9 +23,10 @@ interface PrescriptionItem {
 export function DoctorDashboard() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [activeCall, setActiveCall] = useState<{ id: string; channel: string; patientId: string } | null>(null);
+  const [activeCall, setActiveCall] = useState<{ id: string; channel: string; patientId: string; appointmentId: string } | null>(null);
   const [stats, setStats] = useState({ total: 0, today: 0, completed: 0 });
   const [writingPrescription, setWritingPrescription] = useState<Appointment | null>(null);
+  const [showResolutionModal, setShowResolutionModal] = useState<{ sessionId: string; appointmentId: string } | null>(null);
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([{ medicine: '', dosage: '', duration: '' }]);
   const [savingPrescription, setSavingPrescription] = useState(false);
 
@@ -71,18 +72,32 @@ export function DoctorDashboard() {
       createdAt: new Date().toISOString()
     });
 
-    setActiveCall({ id: sessionRef.id, channel: channelName, patientId: appointment.userId });
+    setActiveCall({ id: sessionRef.id, channel: channelName, patientId: appointment.userId, appointmentId: appointment.id });
   };
 
   const endCall = async () => {
     if (activeCall) {
-      try {
-        await updateDoc(doc(db, 'callSessions', activeCall.id), { status: 'ended' });
-      } catch (e) {
-        console.error(e);
-      }
+      const { id, appointmentId } = activeCall;
       setActiveCall(null);
+      setShowResolutionModal({ sessionId: id, appointmentId });
     }
+  };
+
+  const handleResolveAppointment = async (confirmed: boolean) => {
+    if (!showResolutionModal) return;
+    
+    const { sessionId, appointmentId } = showResolutionModal;
+    
+    try {
+      if (confirmed) {
+        await updateDoc(doc(db, 'appointments', appointmentId), { status: 'completed' });
+      }
+      await updateDoc(doc(db, 'callSessions', sessionId), { status: 'ended' });
+    } catch (e) {
+      console.error(e);
+    }
+    
+    setShowResolutionModal(null);
   };
 
   const handleSavePrescription = async () => {
@@ -162,8 +177,14 @@ export function DoctorDashboard() {
                         <span className="flex items-center gap-1"><Clock size={14} /> {new Date(app.date).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</span>
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                          app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
-                        )}>{app.status === 'confirmed' ? 'নিশ্চিত' : 'অপেক্ষমান'}</span>
+                          app.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : 
+                          app.status === 'completed' ? "bg-blue-100 text-blue-600" :
+                          "bg-amber-100 text-amber-600"
+                        )}>
+                          {app.status === 'confirmed' ? 'নিশ্চিত' : 
+                           app.status === 'completed' ? 'সম্পন্ন' : 
+                           'অপেক্ষমান'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -172,9 +193,6 @@ export function DoctorDashboard() {
                       <>
                         <button onClick={() => updateStatus(app.id, 'confirmed')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors">
                           <CheckCircle size={20} />
-                        </button>
-                        <button onClick={() => updateStatus(app.id, 'cancelled')} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                          <XCircle size={20} />
                         </button>
                       </>
                     )}
@@ -228,6 +246,34 @@ export function DoctorDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Resolution Modal */}
+      {showResolutionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white w-full max-w-md rounded-[40px] p-10 shadow-2xl border border-slate-100 text-center animate-in zoom-in duration-300">
+            <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
+               <CheckCircle size={48} className="animate-bounce" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 mb-4 leading-tight">আমি পেশেন্টের সমস্যা সমাধান করেছি ✅</h2>
+            <p className="text-slate-500 font-medium mb-10 leading-relaxed px-4">আপনার পরামর্শ কি সম্পন্ন হয়েছে? এটি নিশ্চিত করলে অ্যাপয়েন্টমেন্টটি রেকর্ড হিসেবে জমা থাকবে।</p>
+            
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => handleResolveAppointment(true)}
+                className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 shadow-xl shadow-slate-900/20 transition-all active:scale-95"
+              >
+                Confirmed
+              </button>
+              <button 
+                onClick={() => handleResolveAppointment(false)}
+                className="w-full py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+              >
+                পরে করবো
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Prescription Modal */}
       {writingPrescription && (
