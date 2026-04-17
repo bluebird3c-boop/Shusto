@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera, RefreshCcw } from 'lucide-react';
+import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera, RefreshCcw, DollarSign, Wallet } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
+import { TransactionsPanel } from './TransactionsPanel';
 
 interface UserProfile {
   uid: string;
@@ -50,7 +51,7 @@ interface Provider {
 }
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'medicines' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'medicines' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances' | 'transactions'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
@@ -60,6 +61,7 @@ export function AdminDashboard() {
   const [physios, setPhysios] = useState<Provider[]>([]);
   const [hospitals, setHospitals] = useState<Provider[]>([]);
   const [ambulances, setAmbulances] = useState<Provider[]>([]);
+  const [adminBalance, setAdminBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [updatingDoctorId, setUpdatingDoctorId] = useState<string | null>(null);
@@ -171,6 +173,20 @@ export function AdminDashboard() {
       setAmbulances(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
     });
 
+    // Admin Wallet Listener - We query the wallets collection for the admin email's owner
+    const adminEmail = 'shustobd@gmail.com';
+    const unsubAdminWallet = onSnapshot(collection(db, 'users'), (userSnapshot) => {
+      const adminUser = userSnapshot.docs.find(d => d.data().email === adminEmail);
+      if (adminUser) {
+        const adminUid = adminUser.id;
+        onSnapshot(doc(db, 'wallets', adminUid), (walletDoc) => {
+          if (walletDoc.exists()) {
+            setAdminBalance(walletDoc.data().balance || 0);
+          }
+        });
+      }
+    });
+
     setLoading(false);
     return () => {
       unsubUsers();
@@ -180,6 +196,7 @@ export function AdminDashboard() {
       unsubPhysios();
       unsubHospitals();
       unsubAmbulances();
+      unsubAdminWallet();
     };
   }, []);
 
@@ -550,16 +567,48 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {/* Revenue Split Info */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {roles.filter(r => r.split > 0).map(role => (
-          <div key={role.id} className="bg-white p-4 rounded-3xl border border-slate-100 text-center">
-            <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center mx-auto mb-2">
-              <role.icon size={20} />
+      {/* Revenue Split Info & Admin Wallet */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Admin Profit Card */}
+        <div className="lg:col-span-2 bg-slate-900 rounded-[40px] p-8 text-white shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+            <Wallet size={120} />
+          </div>
+          <div className="relative z-10">
+            <p className="text-emerald-400 font-bold uppercase tracking-widest text-xs mb-2">Total Accumulated Profit</p>
+            <h2 className="text-5xl font-black mb-6">৳{adminBalance.toLocaleString()}</h2>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setActiveTab('transactions')}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-2xl font-bold flex items-center gap-2 transition-all"
+              >
+                <DollarSign size={18} /> লেনদেন দেখুন
+              </button>
+              <button 
+                onClick={() => {
+                   // Redirect to common wallet or show message
+                   alert('অ্যাডমিন হিসেবে আপনার প্রফিট তুলতে সরাসরি আপনার পার্সোনাল ওয়ালেট সেকশনে যান।');
+                }}
+                className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                Withdraw Profit
+              </button>
             </div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase">{role.label}</p>
-            <p className="text-lg font-bold text-emerald-600">{role.split * 100}%</p>
-            <p className="text-[10px] text-slate-400">Shusto: {(1 - role.split) * 100}%</p>
+          </div>
+        </div>
+
+        {roles.filter(r => r.split > 0).slice(0, 2).map(role => (
+          <div key={role.id} className="bg-white p-6 rounded-[32px] border border-slate-100 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center">
+                <role.icon size={24} />
+              </div>
+              <p className="text-lg font-black text-emerald-600">{role.split * 100}%</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{role.label} Share</p>
+              <p className="text-[10px] text-slate-400">Shusto Profit: {(1 - role.split) * 100}%</p>
+            </div>
           </div>
         ))}
       </div>
@@ -573,7 +622,7 @@ export function AdminDashboard() {
       <div className="space-y-6">
         {/* Row 1: Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
-          {(['users', 'patients', 'doctors', 'medicines', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'] as const).map((tab) => (
+          {(['users', 'patients', 'doctors', 'medicines', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances', 'transactions'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -589,7 +638,8 @@ export function AdminDashboard() {
                tab === 'pharmacies' ? 'ফার্মেসি' :
                tab === 'labs' ? 'ল্যাব' :
                tab === 'physios' ? 'ফিজিওথেরাপি' :
-               tab === 'hospitals' ? 'হাসপাতাল' : 'অ্যাম্বুলেন্স'}
+               tab === 'hospitals' ? 'হাসপাতাল' : 
+               tab === 'transactions' ? 'লেনদেন' : 'অ্যাম্বুলেন্স'}
             </button>
           ))}
         </div>
@@ -1029,6 +1079,9 @@ export function AdminDashboard() {
               ))}
             </tbody>
           </table>
+        )}
+        {activeTab === 'transactions' && (
+          <TransactionsPanel isAdmin />
         )}
       </div>
     </div>

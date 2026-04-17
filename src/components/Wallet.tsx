@@ -20,6 +20,20 @@ export function Wallet() {
   const [loading, setLoading] = useState(true);
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [amount, setAmount] = useState('');
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawMethod, setWithdrawMethod] = useState<'bkash' | 'nagad'>('bkash');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    // Check for payment success from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success') {
+      alert('পেমেন্ট সফলভাবে সম্পন্ন হয়েছে!');
+      // Clean up URL
+      window.history.replaceState({}, document.title, "/");
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -53,7 +67,10 @@ export function Wallet() {
   }, [user]);
 
   const handleAddMoney = async () => {
-    if (!amount || isNaN(Number(amount))) return;
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      alert('সঠিক পরিমাণ লিখুন।');
+      return;
+    }
 
     try {
       const response = await fetch('/api/payment/init', {
@@ -71,9 +88,57 @@ export function Wallet() {
       const data = await response.json();
       if (data.GatewayPageURL) {
         window.location.href = data.GatewayPageURL;
+      } else {
+        alert('পেমেন্ট গেটওয়ে লোড করা সম্ভব হয়নি। পরে আবার চেষ্টা করুন।');
       }
     } catch (error) {
       console.error("Payment Error:", error);
+      alert('পেমেন্ট প্রসেসিং ব্যর্থ হয়েছে।');
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      alert('সঠিক পরিমাণ লিখুন।');
+      return;
+    }
+    if (Number(amount) > balance) {
+      alert('আপনার পর্যাপ্ত ব্যালেন্স নেই।');
+      return;
+    }
+    if (!phoneNumber || phoneNumber.length < 11) {
+      alert('সঠিক মোবাইল নম্বর লিখুন।');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const response = await fetch('/api/withdraw/automatic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          amount: Number(amount),
+          method: withdrawMethod,
+          phoneNumber: phoneNumber
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.status === 'SUCCESS') {
+        alert(data.message || 'আপনার টাকা সফলভাবে পাঠানো হয়েছে।');
+        setShowWithdraw(false);
+        setAmount('');
+        setPhoneNumber('');
+      } else {
+        alert(data.error || 'টাকা পাঠানো সম্ভব হয়নি। দয়া করে পরে আবার চেষ্টা করুন।');
+      }
+    } catch (error) {
+      console.error("Withdrawal Error:", error);
+      alert('একটি সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -108,19 +173,22 @@ export function Wallet() {
 
         {/* Quick Actions */}
         <div className="bg-white rounded-[40px] p-8 border border-slate-100 flex flex-col justify-center">
-          <h3 className="text-xl font-bold text-slate-900 mb-6">Quick Actions</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-6">কুইক অ্যাকশন</h3>
           <div className="grid grid-cols-2 gap-4">
-            <button className="p-4 bg-slate-50 rounded-3xl flex flex-col items-center gap-2 hover:bg-slate-100 transition-all group">
+            <button 
+              onClick={() => setShowWithdraw(true)}
+              className="p-4 bg-slate-50 rounded-3xl flex flex-col items-center gap-2 hover:bg-slate-100 transition-all group"
+            >
               <div className="p-3 bg-white rounded-2xl group-hover:scale-110 transition-transform">
                 <CreditCard className="text-slate-600" />
               </div>
-              <span className="text-sm font-bold text-slate-600">Withdraw</span>
+              <span className="text-sm font-bold text-slate-600">উইথড্র</span>
             </button>
             <button className="p-4 bg-slate-50 rounded-3xl flex flex-col items-center gap-2 hover:bg-slate-100 transition-all group">
               <div className="p-3 bg-white rounded-2xl group-hover:scale-110 transition-transform">
                 <History className="text-slate-600" />
               </div>
-              <span className="text-sm font-bold text-slate-600">Statement</span>
+              <span className="text-sm font-bold text-slate-600">স্টেটমেন্ট</span>
             </button>
           </div>
         </div>
@@ -174,8 +242,8 @@ export function Wallet() {
       {showAddMoney && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[40px] p-10 shadow-2xl">
-            <h2 className="text-3xl font-bold text-slate-900 mb-2">Add Money</h2>
-            <p className="text-slate-500 mb-8">Enter the amount you want to add to your Shusto wallet.</p>
+            <h2 className="text-3xl font-bold text-slate-900 mb-2">টাকা যোগ করুন</h2>
+            <p className="text-slate-500 mb-8">আপনার Shusto ওয়ালেটে কত টাকা যোগ করতে চান?</p>
             
             <div className="space-y-6">
               <div className="relative">
@@ -203,16 +271,97 @@ export function Wallet() {
 
               <div className="flex gap-4 mt-8">
                 <button 
-                  onClick={() => setShowAddMoney(false)}
+                  onClick={() => {
+                    setShowAddMoney(false);
+                    setAmount('');
+                  }}
                   className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
                 >
-                  Cancel
+                  বাতিল
                 </button>
                 <button 
                   onClick={handleAddMoney}
                   className="flex-1 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
                 >
-                  Proceed
+                  এগিয়ে যান
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdraw && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[40px] p-10 shadow-2xl">
+            <h2 className="text-3xl font-bold text-slate-900 mb-2">টাকা উত্তোলন (Withdraw)</h2>
+            <p className="text-slate-500 mb-8">বিকাশ বা নগদের মাধ্যমে টাকা উত্তোলন করুন।</p>
+            
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => setWithdrawMethod('bkash')}
+                  className={cn(
+                    "py-4 rounded-2xl font-bold border-2 transition-all",
+                    withdrawMethod === 'bkash' ? "bg-pink-50 border-pink-500 text-pink-600" : "bg-slate-50 border-transparent text-slate-500"
+                  )}
+                >
+                  বিকাশ (bKash)
+                </button>
+                <button 
+                  onClick={() => setWithdrawMethod('nagad')}
+                  className={cn(
+                    "py-4 rounded-2xl font-bold border-2 transition-all",
+                    withdrawMethod === 'nagad' ? "bg-orange-50 border-orange-500 text-orange-600" : "bg-slate-50 border-transparent text-slate-500"
+                  )}
+                >
+                  নগদ (Nagad)
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">পরিমাণ (Amount)</label>
+                <div className="relative">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">৳</span>
+                  <input 
+                    type="number" 
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-xl font-bold focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">মোবাইল নম্বর (Phone)</label>
+                <input 
+                  type="tel" 
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-lg font-bold focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="01XXXXXXXXX"
+                />
+              </div>
+
+              <div className="flex gap-4 mt-8">
+                <button 
+                  onClick={() => {
+                    setShowWithdraw(false);
+                    setAmount('');
+                    setPhoneNumber('');
+                  }}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  বাতিল
+                </button>
+                <button 
+                  onClick={handleWithdraw}
+                  disabled={processing}
+                  className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 disabled:opacity-50"
+                >
+                  {processing ? 'প্রসেসিং...' : 'সাবমিট করুন'}
                 </button>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle } from 'lucide-react';
-import { collection, onSnapshot, query, addDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, where, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
@@ -83,8 +83,42 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
 
   const handleBook = async (post?: Post) => {
     if (!user || !selectedProvider) return;
+    
+    // For services, we might need a default fee if it's a general request,
+    // or the item price if a post is selected.
+    const price = post ? Number(post.price) : 0; // If general, maybe 0 for now or handled later
+
     setBookingStatus('booking');
     try {
+      if (price > 0) {
+        // Check Wallet Balance
+        const walletRef = doc(db, 'wallets', user.uid);
+        const walletSnap = await getDoc(walletRef);
+        const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
+
+        if (balance < price) {
+          alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
+          setBookingStatus('idle');
+          return;
+        }
+
+        // Deduct & Record Transaction
+        await updateDoc(walletRef, {
+          balance: increment(-price),
+          updatedAt: new Date().toISOString()
+        });
+
+        await addDoc(collection(db, 'transactions'), {
+          userId: user.uid,
+          amount: price,
+          type: 'payment',
+          status: 'success',
+          targetName: selectedProvider.name,
+          details: post ? `Interested in: ${post.title}` : 'General inquiry',
+          createdAt: new Date().toISOString()
+        });
+      }
+
       await addDoc(collection(db, 'serviceRequests'), {
         userId: user.uid,
         userName: user.displayName || user.email,
@@ -92,15 +126,18 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
         providerName: selectedProvider.name,
         providerType: type,
         status: 'pending',
+        price: price, // Added price field
         createdAt: new Date().toISOString(),
         details: post ? `Interested in: ${post.title}` : 'General inquiry'
       });
+
       setBookingStatus('success');
       setTimeout(() => {
         setBookingStatus('idle');
       }, 2000);
     } catch (error) {
       console.error("Booking error:", error);
+      alert("Something went wrong. Please try again.");
       setBookingStatus('idle');
     }
   };

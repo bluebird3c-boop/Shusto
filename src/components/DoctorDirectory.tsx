@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Star, Clock, Search } from 'lucide-react';
-import { collection, onSnapshot, query, addDoc, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, where, getDocs, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
@@ -76,8 +76,18 @@ export function DoctorDirectory() {
     
     setBookingStatus('booking');
     try {
-      // Use the stored userId if available, otherwise fallback to doctor document ID
-      // This avoids restricted queries on the 'users' collection
+      // 1. Check Wallet Balance
+      const walletRef = doc(db, 'wallets', user.uid);
+      const walletSnap = await getDoc(walletRef);
+      const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
+
+      if (balance < Number(bookingDoctor.fee)) {
+        alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
+        setBookingStatus('idle');
+        return;
+      }
+
+      // 2. Create Appointment
       const doctorUserId = bookingDoctor.userId || bookingDoctor.id;
 
       const appointmentData = {
@@ -91,7 +101,24 @@ export function DoctorDirectory() {
         type: 'video'
       };
 
-      await addDoc(collection(db, 'appointments'), appointmentData);
+      const appRef = await addDoc(collection(db, 'appointments'), appointmentData);
+
+      // 3. Deduct & Record Transaction
+      await updateDoc(walletRef, {
+        balance: increment(-Number(bookingDoctor.fee)),
+        updatedAt: new Date().toISOString()
+      });
+
+      await addDoc(collection(db, 'transactions'), {
+        userId: user.uid,
+        amount: Number(bookingDoctor.fee),
+        type: 'payment',
+        status: 'success',
+        targetId: appRef.id,
+        targetName: bookingDoctor.name,
+        createdAt: new Date().toISOString()
+      });
+
       setBookingStatus('success');
       
       setTimeout(() => {

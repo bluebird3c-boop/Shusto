@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, deleteDoc, orderBy, getDoc, setDoc, increment, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Clock, User, CheckCircle, XCircle, MapPin, Phone, Plus, Trash2, Image as ImageIcon, Tag } from 'lucide-react';
@@ -85,6 +85,55 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
   const updateStatus = async (id: string, status: string) => {
     try {
       await updateDoc(doc(db, 'serviceRequests', id), { status });
+
+      if (status === 'completed' && user) {
+        // Handle Revenue Split
+        const reqSnap = await getDoc(doc(db, 'serviceRequests', id));
+        if (reqSnap.exists()) {
+          const reqData = reqSnap.data();
+          const amount = reqData.price || 0;
+
+          if (amount > 0) {
+            const { calculateRevenueSplit } = await import('../utils/revenueSplit');
+            const { providerShare, shustoShare } = calculateRevenueSplit(amount, type);
+
+            // Update Provider Wallet
+            const providerWalletRef = doc(db, 'wallets', user.uid);
+            await setDoc(providerWalletRef, {
+              uid: user.uid,
+              balance: increment(providerShare),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+
+            // Update Admin Wallet
+            const adminQuery = query(collection(db, 'users'), where('email', '==', 'shustobd@gmail.com'), limit(1));
+            const adminSnap = await getDocs(adminQuery);
+            if (!adminSnap.empty) {
+              const adminUid = adminSnap.docs[0].id;
+              const adminWalletRef = doc(db, 'wallets', adminUid);
+              await setDoc(adminWalletRef, {
+                uid: adminUid,
+                balance: increment(shustoShare),
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+
+              // Record Split Transaction
+              await addDoc(collection(db, 'transactions'), {
+                userId: adminUid,
+                providerId: user.uid,
+                amount: amount,
+                providerShare,
+                shustoShare,
+                type: 'payment',
+                status: 'success',
+                targetId: id,
+                targetName: `Split from ${user.displayName} (${type})`,
+                createdAt: new Date().toISOString()
+              });
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error("Error updating status:", error);
     }

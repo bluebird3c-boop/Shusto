@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDoc, setDoc, increment, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Calendar, Clock, User, Video, CheckCircle, XCircle, FileText, Plus, Trash2 } from 'lucide-react';
@@ -84,17 +84,68 @@ export function DoctorDashboard() {
   };
 
   const handleResolveAppointment = async (confirmed: boolean) => {
-    if (!showResolutionModal) return;
+    if (!showResolutionModal || !user) return;
     
     const { sessionId, appointmentId } = showResolutionModal;
     
     try {
       if (confirmed) {
+        // 1. Mark appointment as completed
         await updateDoc(doc(db, 'appointments', appointmentId), { status: 'completed' });
+
+        // 2. Fetch appointment details to get the fee
+        const appSnap = await getDoc(doc(db, 'appointments', appointmentId));
+        if (appSnap.exists()) {
+          const appData = appSnap.data();
+          const amount = appData.fee || 0;
+          
+          if (amount > 0) {
+            // 3. Calculate Revenue Split
+            const { calculateRevenueSplit } = await import('../utils/revenueSplit');
+            const { providerShare, shustoShare } = calculateRevenueSplit(amount, 'doctor');
+
+            // 4. Update Provider's Wallet
+            const providerWalletRef = doc(db, 'wallets', user.uid);
+            await setDoc(providerWalletRef, { 
+              uid: user.uid, 
+              balance: increment(providerShare), 
+              updatedAt: new Date().toISOString() 
+            }, { merge: true });
+
+            // 5. Update Shusto Admin's Wallet
+            // We'll find the admin by email
+            const adminQuery = query(collection(db, 'users'), where('email', '==', 'shustobd@gmail.com'), limit(1));
+            const adminSnap = await getDocs(adminQuery);
+            if (!adminSnap.empty) {
+              const adminUid = adminSnap.docs[0].id;
+              const adminWalletRef = doc(db, 'wallets', adminUid);
+              await setDoc(adminWalletRef, { 
+                uid: adminUid, 
+                balance: increment(shustoShare), 
+                updatedAt: new Date().toISOString() 
+              }, { merge: true });
+
+              // 6. Record Split Transaction for Admin
+              await addDoc(collection(db, 'transactions'), {
+                userId: adminUid,
+                providerId: user.uid,
+                amount: amount,
+                providerShare,
+                shustoShare,
+                type: 'payment',
+                status: 'success',
+                targetId: appointmentId,
+                targetName: `Split from Dr. ${user.displayName}`,
+                createdAt: new Date().toISOString()
+              });
+            }
+          }
+        }
       }
       await updateDoc(doc(db, 'callSessions', sessionId), { status: 'ended' });
     } catch (e) {
       console.error(e);
+      alert("Failed to process appointment completion and revenue split.");
     }
     
     setShowResolutionModal(null);
@@ -257,20 +308,20 @@ export function DoctorDashboard() {
             <h2 className="text-2xl font-black text-slate-900 mb-4 leading-tight">আমি পেশেন্টের সমস্যা সমাধান করেছি ✅</h2>
             <p className="text-slate-500 font-medium mb-10 leading-relaxed px-4">আপনার পরামর্শ কি সম্পন্ন হয়েছে? এটি নিশ্চিত করলে অ্যাপয়েন্টমেন্টটি রেকর্ড হিসেবে জমা থাকবে।</p>
             
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={() => handleResolveAppointment(true)}
-                className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 shadow-xl shadow-slate-900/20 transition-all active:scale-95"
-              >
-                Confirmed
-              </button>
-              <button 
-                onClick={() => handleResolveAppointment(false)}
-                className="w-full py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all"
-              >
-                পরে করবো
-              </button>
-            </div>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => handleResolveAppointment(true)}
+                  className="w-full py-4 bg-emerald-500 text-white font-black rounded-2xl hover:bg-emerald-600 shadow-xl shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  🆗 কনফার্ম
+                </button>
+                <button 
+                  onClick={() => handleResolveAppointment(false)}
+                  className="w-full py-4 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  এখন না
+                </button>
+              </div>
           </div>
         </div>
       )}
