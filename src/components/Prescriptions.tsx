@@ -25,8 +25,7 @@ export function Prescriptions() {
 
     const q = query(
       collection(db, 'prescriptions'),
-      where('userId', '==', user.uid),
-      orderBy('date', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -53,10 +52,10 @@ export function Prescriptions() {
 
       <div className="grid gap-4">
         {loading ? (
-          <div className="p-12 text-center text-slate-400">লোড হচ্ছে...</div>
+          <div className="p-12 text-center text-slate-400">Loading prescriptions...</div>
         ) : prescriptions.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-[40px] border border-dashed border-slate-200 text-slate-400">
-            কোনো প্রেসক্রিপশন পাওয়া যায়নি।
+            No prescriptions found.
           </div>
         ) : (
           prescriptions.map((pres) => (
@@ -77,15 +76,13 @@ export function Prescriptions() {
               <div className="flex flex-wrap items-center gap-8">
                 <div className="flex items-center gap-2 text-slate-500">
                   <Calendar size={18} />
-                  <span className="text-sm font-medium">
-                    {new Date(pres.date).toLocaleDateString('bn-BD')}
-                  </span>
+                  <span className="text-sm font-medium">{new Date(pres.date).toLocaleDateString()}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                     pres.status === 'Active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {pres.status === 'Active' ? 'সক্রিয়' : pres.status}
+                    {pres.status}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -93,7 +90,7 @@ export function Prescriptions() {
                     onClick={() => setSelectedPrescription(pres)}
                     className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-semibold rounded-xl hover:bg-emerald-600 transition-colors"
                   >
-                    বিস্তারিত দেখুন
+                    View Details
                   </button>
                   <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
                     <Download size={18} />
@@ -125,23 +122,23 @@ export function Prescriptions() {
             </div>
 
             <div className="space-y-4 mb-8">
-              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">নির্ধারিত ঔষধসমূহ</h3>
+              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">Prescribed Medicines</h3>
               {selectedPrescription.items && selectedPrescription.items.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {selectedPrescription.items.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
                       <div>
-                        <p className="font-bold text-slate-900 text-lg">{item.medicine}</p>
-                        <p className="text-sm text-slate-500 font-medium">সময়কাল: {item.duration}</p>
+                        <p className="font-bold text-slate-900">{item.medicine}</p>
+                        <p className="text-sm text-slate-500">{item.duration}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-emerald-600 font-bold text-lg">{item.dosage}</p>
+                        <p className="text-emerald-600 font-bold">{item.dosage}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400 text-center py-4">কোনো ঔষধের তথ্য নেই।</p>
+                <p className="text-slate-400 text-center py-4">No medicine details available.</p>
               )}
             </div>
 
@@ -150,14 +147,11 @@ export function Prescriptions() {
                 onClick={() => setSelectedPrescription(null)}
                 className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
               >
-                বন্ধ করুন
+                Close
               </button>
-              <button 
-                onClick={() => window.print()}
-                className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
-              >
+              <button className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
                 <Download size={20} />
-                ডাউনলোড করুন
+                Download PDF
               </button>
             </div>
           </div>

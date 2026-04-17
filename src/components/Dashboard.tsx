@@ -24,7 +24,6 @@ export function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [incomingCall, setIncomingCall] = useState<{ id: string; channel: string } | null>(null);
   const [activeCall, setActiveCall] = useState<{ id: string; channel: string; patientId: string } | null>(null);
-  const [newPrescription, setNewPrescription] = useState<any>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -50,30 +49,7 @@ export function Dashboard() {
       }
     });
 
-    // Listen for new prescriptions
-    const qPres = query(
-      collection(db, 'prescriptions'),
-      where('userId', '==', user.uid),
-      orderBy('date', 'desc'),
-      limit(1)
-    );
-
-    const unsubscribePres = onSnapshot(qPres, (snapshot) => {
-      if (!snapshot.empty) {
-        const pres = snapshot.docs[0].data();
-        const presDate = new Date(pres.date).getTime();
-        const now = Date.now();
-        // Only show if created in the last 1 minute
-        if (now - presDate < 60000) {
-          setNewPrescription({ id: snapshot.docs[0].id, ...pres });
-        }
-      }
-    });
-
-    return () => {
-      unsubscribeCalls();
-      unsubscribePres();
-    };
+    return () => unsubscribeCalls();
   }, [user]);
 
   const joinCall = () => {
@@ -144,28 +120,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8">
-      {newPrescription && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[150] w-[90%] max-w-md animate-in slide-in-from-top duration-500">
-          <div className="bg-emerald-600 text-white p-6 rounded-[32px] shadow-2xl flex items-center justify-between gap-4 border border-white/20">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                <FileText size={24} />
-              </div>
-              <div>
-                <p className="font-bold">নতুন প্রেসক্রিপশন!</p>
-                <p className="text-sm opacity-90">ডা. {newPrescription.doctorName} পাঠিয়েছেন</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => setNewPrescription(null)}
-              className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-            >
-              <XCircle size={20} />
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Welcome back, {user?.displayName?.split(' ')[0]}!</h1>
