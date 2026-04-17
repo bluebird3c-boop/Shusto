@@ -67,6 +67,62 @@ export function AdminDashboard() {
   const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
   const [newProvider, setNewProvider] = useState({ name: '', location: '', contact: '', email: '' });
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showRoleModal, setShowRoleModal] = useState<{ user: UserProfile, role: string } | null>(null);
+  const [roleDetails, setRoleDetails] = useState({ specialty: 'General Physician', fee: 500, bmdcNumber: 'Pending', location: 'Pending', contact: 'Pending' });
+
+  // Filter users based on search
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => 
+      u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    ).filter(u => activeTab === 'users' ? true : u.role === 'user');
+  }, [users, searchTerm, activeTab]);
+
+  const handlePromoteUser = async () => {
+    if (!showRoleModal) return;
+    const { user, role } = showRoleModal;
+    
+    setLoading(true);
+    try {
+      // Update user document
+      const updateData: any = { role: role };
+      if (['doctor', 'pharmacy', 'lab', 'physio', 'hospital', 'ambulance'].includes(role)) {
+        Object.assign(updateData, roleDetails);
+      }
+      
+      await updateDoc(doc(db, 'users', user.uid), updateData);
+      
+      // Update/Create record in specialized collection
+      const collectionName = role === 'doctor' ? 'doctors' : 
+                           role === 'pharmacy' ? 'pharmacies' : 
+                           role === 'lab' ? 'labs' : 
+                           role === 'physio' ? 'physios' : 
+                           role === 'hospital' ? 'hospitals' : 'ambulances';
+      
+      if (role !== 'user' && role !== 'admin') {
+        const providerId = `u_${user.uid}`;
+        await setDoc(doc(db, collectionName, providerId), {
+          id: providerId,
+          name: user.displayName || 'Unnamed Provider',
+          email: user.email,
+          type: role,
+          userId: user.uid,
+          ...roleDetails,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      showSuccess(`${user.displayName} is now a ${role}!`);
+      setShowRoleModal(null);
+    } catch (error) {
+      console.error("Promotion error:", error);
+      alert("Failed to promote user.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const allUsers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
@@ -569,6 +625,104 @@ export function AdminDashboard() {
         </div>
       </div>
 
+      {showRoleModal && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 leading-tight">Professional Role Details</h2>
+                <p className="text-slate-500 font-medium">Promoting <span className="text-emerald-500">{showRoleModal.user.displayName}</span> to <span className="capitalize text-emerald-500 font-bold">{showRoleModal.role}</span></p>
+              </div>
+              <button onClick={() => setShowRoleModal(null)} className="p-2 hover:bg-slate-50 rounded-xl">
+                <X size={24} className="text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {showRoleModal.role === 'doctor' ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Specialty</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Cardiologist" 
+                      value={roleDetails.specialty} 
+                      onChange={e => setRoleDetails({...roleDetails, specialty: e.target.value})} 
+                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:border-emerald-500 bg-slate-50/50 font-medium transition-all" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">BMDC No.</label>
+                      <input 
+                        type="text" 
+                        placeholder="A-12345" 
+                        value={roleDetails.bmdcNumber} 
+                        onChange={e => setRoleDetails({...roleDetails, bmdcNumber: e.target.value})} 
+                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:border-emerald-500 bg-slate-50/50 font-medium transition-all" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Consultation Fee</label>
+                      <input 
+                        type="number" 
+                        placeholder="৳ 500" 
+                        value={roleDetails.fee} 
+                        onChange={e => setRoleDetails({...roleDetails, fee: Number(e.target.value)})} 
+                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:border-emerald-500 bg-slate-50/50 font-medium transition-all" 
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Location / Area</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Dhaka, Bangladesh" 
+                      value={roleDetails.location} 
+                      onChange={e => setRoleDetails({...roleDetails, location: e.target.value})} 
+                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:border-emerald-500 bg-slate-50/50 font-medium transition-all" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Contact Number</label>
+                    <input 
+                      type="text" 
+                      placeholder="+8801xxxxxxxxx" 
+                      value={roleDetails.contact} 
+                      onChange={e => setRoleDetails({...roleDetails, contact: e.target.value})} 
+                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:border-emerald-500 bg-slate-50/50 font-medium transition-all" 
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  onClick={() => setShowRoleModal(null)}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handlePromoteUser}
+                  disabled={loading}
+                  className="flex-3 py-4 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {loading ? 'Processing...' : 'Confirm Promotion'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {showAddModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl border border-slate-100">
@@ -632,61 +786,104 @@ export function AdminDashboard() {
 
       <div className="bg-white rounded-[32px] border border-slate-100 overflow-hidden">
         {(activeTab === 'users' || activeTab === 'patients') && (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">User</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Email</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Role</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {users
-                .filter(u => activeTab === 'users' ? true : u.role === 'user')
-                .map((user) => (
-                <tr key={user.uid} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`} 
-                        className="w-8 h-8 rounded-full border border-slate-100" 
-                        alt="" 
-                        referrerPolicy="no-referrer"
-                      />
-                      <span className="font-medium text-slate-900">{user.displayName}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{user.email}</td>
-                  <td className="px-6 py-4 capitalize">
-                    <span className={cn(
-                      "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
-                      user.role === 'admin' ? "bg-red-50 text-red-600" :
-                      user.role === 'doctor' ? "bg-emerald-50 text-emerald-600" :
-                      "bg-blue-50 text-blue-600"
-                    )}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 flex items-center gap-2">
-                    <select value={user.role} onChange={(e) => updateUserRole(user.uid, e.target.value)} className="text-sm border border-slate-200 rounded-lg px-2 py-1">
-                      {roles.map(role => <option key={role.id} value={role.id}>{role.label}</option>)}
-                    </select>
-                    <button 
-                      onClick={() => syncUserRole(user)} 
-                      className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl" 
-                      title="Sync/Fix Role from Provider Records"
-                    >
-                      <RefreshCcw size={18} />
-                    </button>
-                    <button onClick={() => deleteItem('users', user.uid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl" title="Delete User">
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+              <Search className="text-slate-400" size={20} />
+              <input 
+                type="text" 
+                placeholder="ইউজার বা ইমেইল দিয়ে সার্চ করুন..." 
+                className="flex-1 bg-transparent border-none focus:ring-0 font-medium"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="bg-white rounded-[32px] border border-slate-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-900">User</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-900">Email</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-900">Role</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-900">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredUsers.map((user) => (
+                    <tr key={user.uid} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <img 
+                            src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`} 
+                            className="w-10 h-10 rounded-2xl border border-slate-100 shadow-sm" 
+                            alt="" 
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-900 block">{user.displayName}</span>
+                            <span className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">{user.uid.slice(0, 8)}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-500 font-medium">{user.email}</td>
+                      <td className="px-6 py-4 capitalize">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                          user.role === 'admin' ? "bg-rose-50 text-rose-600 border border-rose-100" :
+                          user.role === 'doctor' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                          user.role === 'user' ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                          "bg-slate-100 text-slate-600 border border-slate-200"
+                        )}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 flex items-center gap-2">
+                        <select 
+                          value={user.role} 
+                          onChange={(e) => {
+                            if (e.target.value === user.role) return;
+                            if (e.target.value === 'user' || e.target.value === 'admin') {
+                              updateUserRole(user.uid, e.target.value);
+                            } else {
+                              setShowRoleModal({ user, role: e.target.value });
+                              // Pre-populate based on existing role if they were already that role
+                              setRoleDetails({
+                                specialty: (user as any).specialty || 'General Physician',
+                                fee: (user as any).fee || 500,
+                                bmdcNumber: (user as any).bmdcNumber || 'Pending',
+                                location: (user as any).location || 'Pending',
+                                contact: (user as any).contact || 'Pending'
+                              });
+                            }
+                          }} 
+                          className="text-sm border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 font-bold focus:ring-2 focus:ring-emerald-500/20"
+                        >
+                          {roles.map(role => <option key={role.id} value={role.id}>{role.label}</option>)}
+                        </select>
+                        <button 
+                          onClick={() => syncUserRole(user)} 
+                          className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all" 
+                          title="Sync/Fix Role from Provider Records"
+                        >
+                          <RefreshCcw size={18} />
+                        </button>
+                        <button onClick={() => deleteItem('users', user.uid)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Delete User">
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium italic">
+                        No users found matching "{searchTerm}"
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {activeTab === 'medicines' && (
