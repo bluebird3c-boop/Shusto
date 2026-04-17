@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface VideoCallProps {
@@ -20,6 +20,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
+  const [speakerOn, setSpeakerOn] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -164,6 +165,21 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     }
   };
 
+  const toggleSpeaker = () => {
+    // In Browser, speaker is managed by the OS typically, 
+    // but we can adjust existing remote audio tracks
+    remoteUsers.forEach(user => {
+      if (user.audioTrack) {
+        if (speakerOn) {
+          user.audioTrack.setVolume(0);
+        } else {
+          user.audioTrack.setVolume(100);
+        }
+      }
+    });
+    setSpeakerOn(!speakerOn);
+  };
+
   const handleEndCall = () => {
     localAudioTrack?.stop();
     localAudioTrack?.close();
@@ -178,78 +194,95 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
       ref={containerRef}
       className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden"
     >
-      <div className="relative w-full h-full bg-black overflow-hidden">
+      <div className="relative w-full h-full bg-slate-950 overflow-hidden">
         {/* Remote Video (Main - Background) */}
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+        <div className="absolute inset-0 flex items-center justify-center">
           {remoteUsers.length > 0 ? (
-            remoteUsers.map((user) => (
-              <RemotePlayer key={user.uid} user={user} />
-            ))
+            // Only show the first remote user for 1:1 WhatsApp style
+            <RemotePlayer user={remoteUsers[0]} />
           ) : (
             <div className="text-center space-y-6 z-10 px-6">
-              <div className="w-24 h-24 bg-slate-800/50 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-pulse border border-white/10">
-                <Video size={48} className="text-slate-500" />
+              <div className="w-20 h-20 bg-emerald-500/10 backdrop-blur-xl rounded-full flex items-center justify-center mx-auto animate-pulse border border-emerald-500/20">
+                <Video size={32} className="text-emerald-500" />
               </div>
               <div className="space-y-2">
-                <p className="text-white text-lg font-semibold">কানেক্ট হচ্ছে...</p>
-                <p className="text-slate-400 text-sm">আপনার ডাক্তার বা রোগীর জন্য অপেক্ষা করা হচ্ছে। অনুগ্রহ করে লাইন কাটবেন না।</p>
-              </div>
-              <div className="inline-block px-4 py-2 bg-white/5 rounded-lg border border-white/5">
-                <p className="text-slate-500 text-[10px] uppercase tracking-widest font-mono">Channel ID: {channelName}</p>
+                <p className="text-white text-lg font-bold">কানেক্ট হচ্ছে...</p>
+                <p className="text-slate-400 text-xs px-10">আপনার অপরিপার্শ্বের জন্য অপেক্ষা করা হচ্ছে। অনুগ্রহ করে লাইন কাটবেন না।</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Local Video (PIP - Floating) */}
+        {/* Local Video (PIP - Small Floating Box) */}
         <div 
           ref={localPlayerRef}
-          className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] md:aspect-video bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-30 transition-all cursor-move"
-        />
-
-        {/* Top Info Overlay */}
-        <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-40">
-          <div className={cn("w-2 h-2 rounded-full animate-pulse", isConnected ? "bg-emerald-500" : "bg-amber-500")} />
-          <span className="text-white text-xs font-medium uppercase tracking-wider">লাইভ</span>
+          className={cn(
+            "absolute top-6 right-6 w-28 md:w-40 aspect-[9/16] bg-slate-900 rounded-[24px] overflow-hidden border-2 border-white/30 shadow-2xl z-50 transition-all",
+            !videoOn && "border-red-500/50"
+          )}
+        >
+          {!videoOn && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+              <VideoOff size={24} className="text-slate-700" />
+            </div>
+          )}
         </div>
 
-        {/* Controls Overlay (Bottom) */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 bg-black/60 backdrop-blur-2xl px-8 py-5 rounded-[40px] border border-white/10 shadow-2xl z-50">
-          <button 
-            onClick={toggleMic}
-            className={cn(
-              "w-12 h-12 flex items-center justify-center rounded-full transition-all",
-              micOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500 text-white"
-            )}
-          >
-            {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-          </button>
-          
-          <button 
-            onClick={toggleVideo}
-            className={cn(
-              "w-12 h-12 flex items-center justify-center rounded-full transition-all",
-              videoOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500 text-white"
-            )}
-          >
-            {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
-          </button>
+        {/* Top Indicators */}
+        <div className="absolute top-6 left-6 flex items-center gap-3 z-50">
+          <div className="bg-black/30 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2">
+            <div className={cn("w-2 h-2 rounded-full", isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
+            <span className="text-white text-[10px] font-bold uppercase tracking-wider">সরাসরি</span>
+          </div>
+        </div>
 
-          <button 
-            onClick={handleEndCall}
-            className="w-14 h-14 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-xl shadow-red-500/40"
-          >
-            <PhoneOff size={24} />
-          </button>
+        {/* Action Controls (WhatsApp Style - Small & Bottom) */}
+        <div className="absolute bottom-12 left-0 right-0 flex flex-col items-center gap-6 z-[60]">
+          <div className="flex items-center gap-4 bg-black/40 backdrop-blur-3xl px-6 py-4 rounded-[40px] border border-white/10 shadow-3xl">
+            <button 
+              onClick={toggleMic}
+              className={cn(
+                "w-11 h-11 flex items-center justify-center rounded-full transition-all",
+                micOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500/90 text-white"
+              )}
+            >
+              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+            </button>
+            
+            <button 
+              onClick={toggleSpeaker}
+              className={cn(
+                "w-11 h-11 flex items-center justify-center rounded-full transition-all",
+                speakerOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-amber-500/90 text-white"
+              )}
+            >
+              {speakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
+            </button>
 
-          <div className="w-px h-8 bg-white/10 mx-1" />
+            <button 
+              onClick={handleEndCall}
+              className="w-14 h-14 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-all shadow-xl shadow-red-600/30 scale-110"
+            >
+              <PhoneOff size={24} fill="white" />
+            </button>
 
-          <button 
-            onClick={toggleFullScreen}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
-          >
-            {isFullScreen ? <Minimize size={20} /> : <Maximize size={20} />}
-          </button>
+            <button 
+              onClick={toggleVideo}
+              className={cn(
+                "w-11 h-11 flex items-center justify-center rounded-full transition-all",
+                videoOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500/90 text-white"
+              )}
+            >
+              {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
+            </button>
+
+            <button 
+                onClick={toggleFullScreen}
+                className="w-11 h-11 flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-all border border-white/5"
+            >
+                {isFullScreen ? <Minimize size={20} /> : <Maximize size={20} />}
+            </button>
+          </div>
         </div>
       </div>
     </div>
