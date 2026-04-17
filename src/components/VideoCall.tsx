@@ -319,41 +319,41 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         </div>
 
         {/* Controls Overlay (Bottom) */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 bg-black/60 backdrop-blur-2xl px-8 py-5 rounded-[40px] border border-white/10 shadow-2xl z-50">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 backdrop-blur-2xl px-6 py-3 rounded-[32px] border border-white/10 shadow-2xl z-50">
           <button 
             onClick={toggleMic}
             className={cn(
-              "w-12 h-12 flex items-center justify-center rounded-full transition-all",
+              "w-10 h-10 flex items-center justify-center rounded-full transition-all",
               micOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500 text-white"
             )}
           >
-            {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+            {micOn ? <Mic size={18} /> : <MicOff size={18} />}
           </button>
           
           <button 
             onClick={toggleVideo}
             className={cn(
-              "w-12 h-12 flex items-center justify-center rounded-full transition-all",
+              "w-10 h-10 flex items-center justify-center rounded-full transition-all",
               videoOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500 text-white"
             )}
           >
-            {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
+            {videoOn ? <Video size={18} /> : <VideoOff size={18} />}
           </button>
 
           <button 
             onClick={handleEndCall}
-            className="w-14 h-14 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-xl shadow-red-500/40"
+            className="w-12 h-12 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-xl shadow-red-500/40"
           >
-            <PhoneOff size={24} />
+            <PhoneOff size={22} />
           </button>
 
-          <div className="w-px h-8 bg-white/10 mx-1" />
+          <div className="w-px h-6 bg-white/10 mx-1" />
 
           <button 
             onClick={toggleFullScreen}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
+            className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
           >
-            {isFullScreen ? <Minimize size={20} /> : <Maximize size={20} />}
+            {isFullScreen ? <Minimize size={18} /> : <Maximize size={18} />}
           </button>
         </div>
       </div>
