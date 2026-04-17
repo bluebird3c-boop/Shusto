@@ -92,6 +92,22 @@
       },
       "required": ["channelName", "doctorId", "patientId", "status"]
     },
+    "GlobalPrescription": {
+      "title": "GlobalPrescription",
+      "description": "Prescription stored in global collection",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "specialty": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "status": { "type": "string" }
+      },
+      "required": ["userId", "doctorId", "date", "items"]
+    },
     "ServiceRequest": {
       "title": "ServiceRequest",
       "description": "Request for specialized services like Ambulance or Physio",
@@ -164,6 +180,10 @@
     "/callSessions/{sessionId}": {
       "schema": "CallSession",
       "description": "Active and past video call sessions"
+    },
+    "/prescriptions/{prescriptionId}": {
+      "schema": "GlobalPrescription",
+      "description": "All prescriptions in the system"
     },
     "/serviceRequests/{requestId}": {
       "schema": "ServiceRequest",

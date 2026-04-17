@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize, AlertCircle, Camera, ShieldAlert, FileText, Plus, Trash2, XCircle, CheckCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
 
@@ -213,6 +213,7 @@ export function VideoCall({ channelName, role, onEnd, patientId, patientName }: 
       }, 2000);
     } catch (error) {
       console.error("Error saving prescription:", error);
+      handleFirestoreError(error, OperationType.CREATE, 'prescriptions');
       alert("Failed to send prescription. Please try again.");
     } finally {
       setSavingPrescription(false);

@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Download, Calendar, XCircle } from 'lucide-react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, or } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 
 interface Prescription {
   id: string;
+  userId: string;
+  userName?: string;
   doctorName: string;
+  doctorId: string;
   specialty: string;
   date: string;
   status: string;
@@ -25,7 +28,10 @@ export function Prescriptions() {
 
     const q = query(
       collection(db, 'prescriptions'),
-      where('userId', '==', user.uid)
+      or(
+        where('userId', '==', user.uid),
+        where('doctorId', '==', user.uid)
+      )
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -68,8 +74,12 @@ export function Prescriptions() {
                   <FileText size={28} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">{pres.doctorName}</h3>
-                  <p className="text-sm text-slate-500">{pres.specialty}</p>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {user?.uid === pres.doctorId ? `Patient: ${pres.userName || 'Unknown'}` : pres.doctorName}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {user?.uid === pres.doctorId ? `Issued on ${new Date(pres.date).toLocaleDateString()}` : pres.specialty}
+                  </p>
                 </div>
               </div>
 
@@ -112,8 +122,12 @@ export function Prescriptions() {
                   <FileText size={32} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">{selectedPrescription.doctorName}</h2>
-                  <p className="text-slate-500">{selectedPrescription.specialty}</p>
+                  <h2 className="text-2xl font-bold text-slate-900">
+                    {user?.uid === selectedPrescription.doctorId ? `Patient: ${selectedPrescription.userName || 'Unknown'}` : selectedPrescription.doctorName}
+                  </h2>
+                  <p className="text-slate-500">
+                    {user?.uid === selectedPrescription.doctorId ? 'Issued Prescription' : selectedPrescription.specialty}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setSelectedPrescription(null)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors">
