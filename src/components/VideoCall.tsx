@@ -36,15 +36,19 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         setClient(agoraClient);
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          await subscribeWithRetry(agoraClient, user, mediaType);
+          await agoraClient.subscribe(user, mediaType);
+          console.log("Subscribed to user:", user.uid, mediaType);
           
-          setRemoteUsers((prev) => {
-            const exists = prev.find(u => u.uid === user.uid);
-            if (exists) {
-              return prev.map(u => u.uid === user.uid ? { ...user } : u);
-            }
-            return [...prev, { ...user }];
-          });
+          if (mediaType === 'video') {
+            setRemoteUsers((prev) => {
+              const exists = prev.find(u => u.uid === user.uid);
+              if (exists) return prev; // Already in list
+              return [...prev, user];
+            });
+          }
+          if (mediaType === 'audio') {
+            user.audioTrack?.play();
+          }
         });
 
         agoraClient.on('user-unpublished', (user) => {
@@ -242,39 +246,11 @@ function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    const playTrack = async () => {
-      if (playerRef.current && user.videoTrack) {
-        try {
-          // Add a small delay for DOM to be ready
-          setTimeout(async () => {
-            if (isMounted && playerRef.current) {
-              await user.videoTrack.play(playerRef.current, { fit: 'cover' });
-            }
-          }, 500);
-        } catch (e) {
-          console.error("Remote playback error:", e);
-        }
-      }
-    };
-    playTrack();
-    return () => {
-      isMounted = false;
-      user.videoTrack?.stop();
-    };
-  }, [user.videoTrack, playerRef.current]);
+    if (playerRef.current && user.videoTrack) {
+      user.videoTrack.play(playerRef.current, { fit: 'cover' });
+    }
+    return () => user.videoTrack?.stop();
+  }, [user.videoTrack]);
 
-  return (
-    <div className="w-full h-full relative">
-      <div ref={playerRef} className="w-full h-full" />
-      {!user.videoTrack && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-4">
-          <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
-            <VideoOff size={32} className="text-slate-600" />
-          </div>
-          <p className="text-slate-500 text-xs font-medium">ক্যামেরা কানেক্ট হচ্ছে...</p>
-        </div>
-      )}
-    </div>
-  );
+  return <div ref={playerRef} className="w-full h-full" />;
 }
