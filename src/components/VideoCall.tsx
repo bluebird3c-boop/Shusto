@@ -168,10 +168,10 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
   // Handle local video playback
   useEffect(() => {
-    if (localVideoTrack && localPlayerRef.current) {
+    if (!isInitializing && localVideoTrack && localPlayerRef.current) {
       localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
     }
-  }, [localVideoTrack, localPlayerRef]);
+  }, [localVideoTrack, localPlayerRef, isInitializing]);
 
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
