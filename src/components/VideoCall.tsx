@@ -36,18 +36,25 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         setClient(agoraClient);
 
         agoraClient.on('user-published', async (user, mediaType) => {
-          await agoraClient.subscribe(user, mediaType);
-          console.log("Subscribed to user:", user.uid, mediaType);
-          
-          if (mediaType === 'video') {
+          try {
+            await agoraClient.subscribe(user, mediaType);
+            console.log(`[Agora] Subscribed to ${user.uid} ${mediaType}`);
+            
             setRemoteUsers((prev) => {
-              const exists = prev.find(u => u.uid === user.uid);
-              if (exists) return prev; // Already in list
-              return [...prev, user];
+              const hasUser = prev.find(u => u.uid === user.uid);
+              if (hasUser) {
+                // Update the user object to trigger a re-render so videoTrack is recognized
+                return prev.map(u => u.uid === user.uid ? { ...user } : u);
+              }
+              // Add new user to the list
+              return [...prev, { ...user }];
             });
-          }
-          if (mediaType === 'audio') {
-            user.audioTrack?.play();
+
+            if (mediaType === 'audio') {
+              user.audioTrack?.play();
+            }
+          } catch (e) {
+            console.error("Subscription error:", e);
           }
         });
 
@@ -57,16 +64,23 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
 
-        // Create tracks individually for better error handling
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(() => null);
-        const videoTrack = await AgoraRTC.createCameraVideoTrack({
-          optimizationMode: 'motion',
-        }).catch(() => null);
+        // Create tracks individually with better error catching
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch((e) => {
+          console.warn("Mic error:", e);
+          return null;
+        });
+        
+        const videoTrack = await AgoraRTC.createCameraVideoTrack().catch((e) => {
+          console.error("Camera error:", e);
+          alert("আপনার ক্যামেরা ব্যবহার করা যাচ্ছে না। দয়া করে ব্রাউজার পারমিশন চেক করুন।");
+          return null;
+        });
         
         if (audioTrack) {
           setLocalAudioTrack(audioTrack);
           await agoraClient.publish(audioTrack);
         }
+        
         if (videoTrack) {
           setLocalVideoTrack(videoTrack);
           await agoraClient.publish(videoTrack);
