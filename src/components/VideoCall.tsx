@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../AuthContext';
 
 interface VideoCallProps {
   channelName: string;
@@ -13,6 +14,7 @@ interface VideoCallProps {
 const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "e66b5e13d30b4844b6f95ad4b9cd7572";
 
 export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
+  const { user } = useAuth();
   const [client, setClient] = useState<IAgoraRTCClient | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
@@ -72,14 +74,19 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         await agoraClient.join(APP_ID, channelName, null, numericUid);
 
-        // Use a more compatible video profile for mobile stability
-        const videoTrack = await AgoraRTC.createCameraVideoTrack({
-          encoderConfig: '360p_1',
-        }).catch((e) => {
-          console.error("Camera error:", e);
-          alert("আপনার ক্যামেরা ব্যবহার করা যাচ্ছে না। দয়া করে ব্রাউজার পারমিশন চেক করুন।");
-          return null;
-        });
+        // Create tracks individually with better error catching
+        const [audioTrack, videoTrack] = await Promise.all([
+          AgoraRTC.createMicrophoneAudioTrack().catch(e => {
+            console.warn("Mic error:", e);
+            return null;
+          }),
+          AgoraRTC.createCameraVideoTrack({
+            encoderConfig: '360p_1',
+          }).catch(e => {
+            console.error("Camera error:", e);
+            return null;
+          })
+        ]);
         
         if (audioTrack) {
           setLocalAudioTrack(audioTrack);
