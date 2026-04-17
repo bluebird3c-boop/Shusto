@@ -65,7 +65,12 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
         });
 
-        await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
+        // Create a consistent numeric UID from user email to prevent ghost users
+        const numericUid = user?.email 
+          ? Array.from(user.email).reduce((acc, char) => acc + char.charCodeAt(0), 0) 
+          : Math.floor(Math.random() * 1000000);
+
+        await agoraClient.join(APP_ID, channelName, null, numericUid);
 
         // Use a more compatible video profile for mobile stability
         const videoTrack = await AgoraRTC.createCameraVideoTrack({
@@ -237,50 +242,50 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         </div>
 
         {/* Action Controls (WhatsApp Style - Small & Bottom) */}
-        <div className="absolute bottom-12 left-0 right-0 flex flex-col items-center gap-6 z-[60]">
-          <div className="flex items-center gap-4 bg-black/40 backdrop-blur-3xl px-6 py-4 rounded-[40px] border border-white/10 shadow-3xl">
+        <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center gap-6 z-[60]">
+          <div className="flex items-center gap-2 bg-black/40 backdrop-blur-3xl px-4 py-3 rounded-[32px] border border-white/10 shadow-3xl">
             <button 
               onClick={toggleMic}
               className={cn(
-                "w-11 h-11 flex items-center justify-center rounded-full transition-all",
-                micOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500/90 text-white"
+                "w-10 h-10 flex items-center justify-center rounded-full transition-all",
+                micOn ? "bg-white/10 text-white" : "bg-red-500/90 text-white"
               )}
             >
-              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              {micOn ? <Mic size={18} /> : <MicOff size={18} />}
             </button>
             
             <button 
               onClick={toggleSpeaker}
               className={cn(
-                "w-11 h-11 flex items-center justify-center rounded-full transition-all",
-                speakerOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-amber-500/90 text-white"
+                "w-10 h-10 flex items-center justify-center rounded-full transition-all",
+                speakerOn ? "bg-white/10 text-white" : "bg-amber-500/90 text-white"
               )}
             >
-              {speakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
+              {speakerOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
 
             <button 
               onClick={handleEndCall}
-              className="w-14 h-14 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-all shadow-xl shadow-red-600/30 scale-110"
+              className="w-12 h-12 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-all shadow-xl shadow-red-600/30 mx-2"
             >
-              <PhoneOff size={24} fill="white" />
+              <PhoneOff size={22} fill="white" />
             </button>
 
             <button 
               onClick={toggleVideo}
               className={cn(
-                "w-11 h-11 flex items-center justify-center rounded-full transition-all",
-                videoOn ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-500/90 text-white"
+                "w-10 h-10 flex items-center justify-center rounded-full transition-all",
+                videoOn ? "bg-white/10 text-white" : "bg-red-500/90 text-white"
               )}
             >
-              {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
+              {videoOn ? <Video size={18} /> : <VideoOff size={18} />}
             </button>
 
             <button 
                 onClick={toggleFullScreen}
-                className="w-11 h-11 flex items-center justify-center bg-white/10 text-white rounded-full hover:bg-white/20 transition-all border border-white/5"
+                className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded-full transition-all"
             >
-                {isFullScreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                {isFullScreen ? <Minimize size={18} /> : <Maximize size={18} />}
             </button>
           </div>
         </div>
