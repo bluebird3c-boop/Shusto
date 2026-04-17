@@ -128,6 +128,8 @@ export function DoctorDashboard() {
         channelName={activeCall.channel} 
         role="host" 
         onEnd={endCall} 
+        patientId={activeCall.patientId}
+        patientName={appointments.find(a => a.userId === activeCall.patientId)?.userName || 'Patient'}
       />
     );
   }

@@ -263,6 +263,13 @@ service cloud.firestore {
       allow write: if isAdmin() && isValidProvider(request.resource.data);
     }
 
+    match /prescriptions/{prescriptionId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.doctorId || isAdmin());
+      allow create: if isAuthenticated() && (isAdmin() || isDoctor());
+      allow update: if isAuthenticated() && (isAdmin() || (isDoctor() && request.auth.uid == resource.data.doctorId));
+      allow delete: if isAdmin();
+    }
+
     match /users/{userId}/prescriptions/{prescriptionId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidPrescription(request.resource.data);

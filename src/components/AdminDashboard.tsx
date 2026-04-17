@@ -3,6 +3,7 @@ import { collection, query, getDocs, doc, updateDoc, setDoc, where, deleteDoc, o
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User as UserIcon, Shield, Stethoscope, Pill, FlaskConical, Truck, Building, Activity, Plus, X, Trash2, Search, Camera, RefreshCcw } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { motion } from 'motion/react';
 
 interface UserProfile {
   uid: string;
