@@ -120,28 +120,31 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5;
 
     const playLocal = async () => {
       if (localVideoTrack && localPlayerRef.current) {
-        console.log("Playing local track...");
+        console.log("Playing local track (Self-View)...");
         try {
+          // Important for Agora: stop track before playing in a new container
           localVideoTrack.stop();
           if (isMounted) {
+            // Internal Agora play method handles creating a <video> with proper attributes
+            // like autoplay, playsinline, and muted for local tracks.
             await localVideoTrack.play(localPlayerRef.current, { fit: 'cover' });
           }
         } catch (e) {
-          console.error("Local play error:", e);
+          console.error("Local self-view play error:", e);
           if (retryCount < MAX_RETRIES) {
             retryCount++;
-            setTimeout(playLocal, 1000);
+            setTimeout(playLocal, 800);
           }
         }
       }
     };
     
-    // Add a slight delay to ensure DOM is fully ready
-    const timer = setTimeout(playLocal, 500);
+    // Slight delay to ensure React has fully rendered the container div
+    const timer = setTimeout(playLocal, 300);
     
     return () => {
       isMounted = false;
@@ -217,13 +220,14 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         </div>
 
         {/* Local Video (PIP - Floating) */}
-        {localVideoTrack && (
-          <div 
-            ref={localPlayerRef}
-            className="absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] bg-slate-800 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl z-[70] transition-all"
-            style={{ touchAction: 'none' }}
-          />
-        )}
+        <div 
+          ref={localPlayerRef}
+          className={cn(
+            "absolute top-6 right-6 w-32 md:w-48 aspect-[9/16] bg-slate-900 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl transition-all",
+            localVideoTrack ? "z-[100] scale-100 opacity-100" : "z-0 scale-95 opacity-0"
+          )}
+          style={{ touchAction: 'none' }}
+        />
 
         {/* Permission Notice */}
         {isConnected && !localVideoTrack && (
