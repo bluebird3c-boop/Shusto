@@ -66,13 +66,10 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
 
-        // Create tracks individually with better error catching
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch((e) => {
-          console.warn("Mic error:", e);
-          return null;
-        });
-        
-        const videoTrack = await AgoraRTC.createCameraVideoTrack().catch((e) => {
+        // Use a more compatible video profile for mobile stability
+        const videoTrack = await AgoraRTC.createCameraVideoTrack({
+          encoderConfig: '360p_1',
+        }).catch((e) => {
           console.error("Camera error:", e);
           alert("আপনার ক্যামেরা ব্যবহার করা যাচ্ছে না। দয়া করে ব্রাউজার পারমিশন চেক করুন।");
           return null;
@@ -85,6 +82,7 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         
         if (videoTrack) {
           setLocalVideoTrack(videoTrack);
+          console.log("[Agora] Publishing local video track...");
           await agoraClient.publish(videoTrack);
         }
 
@@ -260,18 +258,41 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
 function RemotePlayer({ user }: { user: any }) {
   const playerRef = useRef<HTMLDivElement>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
+    let timeoutId: any;
     if (playerRef.current && user.videoTrack) {
-      console.log(`[Agora] Playing remote video for user: ${user.uid}`);
+      console.log(`[Agora] Attempting to play video for user: ${user.uid}`);
       user.videoTrack.play(playerRef.current, { fit: 'cover' });
+      
+      // Force a re-play in case of black screen issues
+      timeoutId = setTimeout(() => {
+        if (user.videoTrack) {
+          user.videoTrack.stop();
+          user.videoTrack.play(playerRef.current, { fit: 'cover' });
+        }
+      }, 2000);
     }
+    
     return () => {
+      clearTimeout(timeoutId);
       try {
         user.videoTrack?.stop();
       } catch (e) {}
     };
-  }, [user.videoTrack, user.uid]);
+  }, [user.videoTrack, user.uid, retry]);
 
-  return <div ref={playerRef} className="w-full h-full" />;
+  return (
+    <div className="w-full h-full relative">
+      <div ref={playerRef} className="w-full h-full" />
+      {/* Invisible button to trigger manual re-play */}
+      <button 
+        onClick={() => setRetry(prev => prev + 1)}
+        className="absolute bottom-24 right-4 bg-white/20 hover:bg-white/30 text-white text-[10px] px-2 py-1 rounded-lg backdrop-blur-sm z-[200]"
+      >
+        ভিডিও আসছে না? এখানে চাপুন
+      </button>
+    </div>
+  );
 }
