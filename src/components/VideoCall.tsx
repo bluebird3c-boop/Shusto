@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize, Minimize, AlertCircle, Camera, ShieldAlert } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface VideoCallProps {
@@ -22,6 +22,11 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [videoOn, setVideoOn] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [permissionError, setPermissionError] = useState<{
+    type: 'camera' | 'microphone' | 'both' | 'general';
+    message: string;
+  } | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const localPlayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,6 +38,8 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     let agoraClient: IAgoraRTCClient;
 
     const init = async () => {
+      setIsInitializing(true);
+      setPermissionError(null);
       try {
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         setClient(agoraClient);
@@ -60,14 +67,29 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
 
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack().catch(e => {
+        let audioTrack: IMicrophoneAudioTrack | null = null;
+        let videoTrack: ICameraVideoTrack | null = null;
+
+        try {
+          audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        } catch (e: any) {
           console.error("Mic error:", e);
-          return null;
-        });
-        const videoTrack = await AgoraRTC.createCameraVideoTrack().catch(e => {
+          if (e.code === 'PERMISSION_DENIED') {
+            setPermissionError({ type: 'microphone', message: 'মাইক্রোফোন ব্যবহারের অনুমতি পাওয়া যায়নি।' });
+          }
+        }
+
+        try {
+          videoTrack = await AgoraRTC.createCameraVideoTrack();
+        } catch (e: any) {
           console.error("Camera error:", e);
-          return null;
-        });
+          if (e.code === 'PERMISSION_DENIED') {
+            setPermissionError(prev => ({
+              type: prev?.type === 'microphone' ? 'both' : 'camera',
+              message: prev?.type === 'microphone' ? 'ক্যামেরা এবং মাইক্রোফোন ব্যবহারের অনুমতি পাওয়া যায়নি।' : 'ক্যামেরা ব্যবহারের অনুমতি পাওয়া যায়নি।'
+            }));
+          }
+        }
         
         if (audioTrack) {
           setLocalAudioTrack(audioTrack);
@@ -86,8 +108,11 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
           await agoraClient.publish(tracksToPublish);
         }
         setIsConnected(true);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Agora init error:", error);
+        setPermissionError({ type: 'general', message: 'ভিডিও কল শুরু করতে সমস্যা হচ্ছে। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করুন।' });
+      } finally {
+        setIsInitializing(false);
       }
     };
 
@@ -152,6 +177,58 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
     client?.leave();
     onEnd();
   };
+
+  if (isInitializing) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-6" />
+        <h2 className="text-xl font-bold text-white mb-2">ভিডিও কল শুরু হচ্ছে...</h2>
+        <p className="text-slate-400">ক্যামেরা এবং মাইক্রোফোন প্রস্তুত করা হচ্ছে।</p>
+      </div>
+    );
+  }
+
+  if (permissionError) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
+          <ShieldAlert size={40} className="text-red-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-4">{permissionError.message}</h2>
+        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 max-w-md w-full mb-8">
+          <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4 text-left">কিভাবে সমাধান করবেন?</h3>
+          <ul className="space-y-3 text-left">
+            <li className="flex gap-3 text-slate-400 text-sm">
+              <span className="flex-shrink-0 w-5 h-5 bg-slate-700 rounded-full flex items-center justify-center text-[10px] font-bold text-white">১</span>
+              ব্রাউজারের অ্যাড্রেস বারের বাম পাশে থাকা তালা (Lock) আইকনে ক্লিক করুন।
+            </li>
+            <li className="flex gap-3 text-slate-400 text-sm">
+              <span className="flex-shrink-0 w-5 h-5 bg-slate-700 rounded-full flex items-center justify-center text-[10px] font-bold text-white">২</span>
+              ক্যামেরা এবং মাইক্রোফোন 'Allow' বা চালু করে দিন।
+            </li>
+            <li className="flex gap-3 text-slate-400 text-sm">
+              <span className="flex-shrink-0 w-5 h-5 bg-slate-700 rounded-full flex items-center justify-center text-[10px] font-bold text-white">৩</span>
+              পেজটি একবার রিফ্রেশ করুন এবং পুনরায় চেষ্টা করুন।
+            </li>
+          </ul>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-colors"
+          >
+            পেজ রিফ্রেশ করুন
+          </button>
+          <button 
+            onClick={onEnd}
+            className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
+          >
+            ফিরে যান
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 
