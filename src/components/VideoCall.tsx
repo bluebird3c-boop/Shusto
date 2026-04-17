@@ -18,6 +18,8 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
   
+  const remoteUsersRef = useRef<any[]>([]);
+  
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -44,25 +46,62 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         setClient(agoraClient);
 
+        // Track users who join the room immediately
+        agoraClient.on('user-joined', (user) => {
+          console.log("User joined room:", user.uid);
+          const newUser = { uid: user.uid, videoTrack: user.videoTrack, audioTrack: user.audioTrack };
+          remoteUsersRef.current = [...remoteUsersRef.current, newUser];
+          setRemoteUsers([...remoteUsersRef.current]);
+        });
+
+        agoraClient.on('user-left', (user) => {
+          console.log("User left room:", user.uid);
+          remoteUsersRef.current = remoteUsersRef.current.filter(u => u.uid !== user.uid);
+          setRemoteUsers([...remoteUsersRef.current]);
+        });
+
         agoraClient.on('user-published', async (user, mediaType) => {
-          await agoraClient.subscribe(user, mediaType);
-          console.log("Subscribed:", user.uid, mediaType);
-          
-          if (mediaType === 'video') {
-            setRemoteUsers((prev) => {
-              if (prev.find(u => u.uid === user.uid)) return prev;
-              return [...prev, user];
+          console.log("User published track:", user.uid, mediaType);
+          try {
+            await agoraClient.subscribe(user, mediaType);
+            console.log("Subscribed successfully:", user.uid, mediaType);
+            
+            // Update the user tracks in our list
+            remoteUsersRef.current = remoteUsersRef.current.map(u => {
+              if (u.uid === user.uid) {
+                return { ...u, videoTrack: user.videoTrack, audioTrack: user.audioTrack };
+              }
+              return u;
             });
-          }
-          if (mediaType === 'audio') {
-            user.audioTrack?.play();
+            
+            // If user joined before they published (which is normal)
+            if (!remoteUsersRef.current.find(u => u.uid === user.uid)) {
+              remoteUsersRef.current.push({ uid: user.uid, videoTrack: user.videoTrack, audioTrack: user.audioTrack });
+            }
+
+            setRemoteUsers([...remoteUsersRef.current]);
+
+            if (mediaType === 'audio') {
+              user.audioTrack?.play();
+            }
+          } catch (e) {
+            console.error("Subscribe error:", e);
           }
         });
 
         agoraClient.on('user-unpublished', (user, mediaType) => {
-          if (mediaType === 'video') {
-            setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
-          }
+          console.log("User unpublished track:", user.uid, mediaType);
+          remoteUsersRef.current = remoteUsersRef.current.map(u => {
+            if (u.uid === user.uid) {
+              return { 
+                ...u, 
+                videoTrack: mediaType === 'video' ? undefined : u.videoTrack,
+                audioTrack: mediaType === 'audio' ? undefined : u.audioTrack 
+              };
+            }
+            return u;
+          });
+          setRemoteUsers([...remoteUsersRef.current]);
         });
 
         await agoraClient.join(APP_ID, channelName, null, Math.floor(Math.random() * 1000000));
@@ -240,7 +279,9 @@ export function VideoCall({ channelName, role, onEnd }: VideoCallProps) {
         <div className="absolute inset-0 bg-black">
           {remoteUsers.length > 0 ? (
             <div className="w-full h-full">
-              <RemotePlayer user={remoteUsers[0]} />
+              {remoteUsers.map(user => (
+                <RemotePlayer key={user.uid} user={user} />
+              ))}
             </div>
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
@@ -314,7 +355,23 @@ function RemotePlayer({ user }: { user: any }) {
     if (playerRef.current && user.videoTrack) {
       user.videoTrack.play(playerRef.current, { fit: 'cover' });
     }
+    return () => {
+      user.videoTrack?.stop();
+    };
   }, [user.videoTrack]);
 
-  return <div ref={playerRef} className="w-full h-full" />;
+  return (
+    <div className="w-full h-full relative">
+      <div ref={playerRef} className="w-full h-full" />
+      {!user.videoTrack && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
+          <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+            <Camera size={48} className="text-slate-600" />
+          </div>
+          <p className="text-white font-medium">অংশগ্রহণকারী যুক্ত আছেন</p>
+          <p className="text-slate-400 text-sm">ভিডিওর জন্য অপেক্ষা করা হচ্ছে...</p>
+        </div>
+      )}
+    </div>
+  );
 }
