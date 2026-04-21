@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FlaskConical, Clock, Info, ChevronRight } from 'lucide-react';
-import { collection, onSnapshot, query, where, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, updateDoc, increment, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { X } from 'lucide-react';
@@ -63,22 +63,68 @@ export function LabTests() {
     if (!user || !bookingTest) return;
     setBookingStatus('booking');
     try {
-      await addDoc(collection(db, 'labOrders'), {
-        userId: user.uid,
-        userName: user.displayName,
-        testId: bookingTest.id,
-        testName: bookingTest.name,
-        price: bookingTest.price,
-        status: 'pending',
-        createdAt: new Date().toISOString()
+      // Robustly parse price
+      const priceRaw = String(bookingTest.price);
+      const priceMatch = priceRaw.match(/\d+/);
+      const price = priceMatch ? Number(priceMatch[0]) : 0;
+
+      if (price <= 0) {
+        alert("এই টেস্টটির মূল্য সঠিক নয়। দয়া করে এডমিনকে জানান।");
+        setBookingStatus('idle');
+        return;
+      }
+
+      await runTransaction(db, async (transaction) => {
+        const walletRef = doc(db, 'wallets', user.uid);
+        const walletSnap = await transaction.get(walletRef);
+        const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
+
+        if (balance < price) {
+          throw new Error('insufficient_balance');
+        }
+
+        // 1. Create Lab Order
+        const orderRef = doc(collection(db, 'labOrders'));
+        transaction.set(orderRef, {
+          userId: user.uid,
+          userName: user.displayName || user.email,
+          testId: bookingTest.id,
+          testName: bookingTest.name,
+          price: price,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+
+        // 2. Deduct & Record Transaction
+        transaction.update(walletRef, {
+          balance: increment(-price),
+          updatedAt: new Date().toISOString()
+        });
+
+        const txRef = doc(collection(db, 'transactions'));
+        transaction.set(txRef, {
+          userId: user.uid,
+          amount: price,
+          type: 'payment',
+          status: 'success',
+          targetId: orderRef.id,
+          targetName: `Lab Test: ${bookingTest.name}`,
+          createdAt: new Date().toISOString()
+        });
       });
+
       setBookingStatus('success');
       setTimeout(() => {
         setBookingStatus('idle');
         setBookingTest(null);
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Lab booking error:", error);
+      if (error.message === 'insufficient_balance') {
+        alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
+      } else {
+        alert("বুকিং করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+      }
       setBookingStatus('idle');
     }
   };

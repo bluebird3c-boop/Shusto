@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Search, ShoppingCart, Filter, X, Plus, Loader2, ChevronRight } from 'lucide-react';
-import { collection, query, addDoc, where, getDocs, limit, startAfter, orderBy, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, addDoc, where, getDocs, limit, startAfter, orderBy, QueryDocumentSnapshot, DocumentData, doc, getDoc, updateDoc, increment, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 
@@ -110,28 +110,72 @@ export function MedicineStore() {
 
   const categories = ['All', 'Fever & Pain', 'Gastric', 'Allergy', 'Antibiotic', 'Diabetes', 'Blood Pressure', 'Asthma', 'Anxiety', 'Supplements', 'Nutrition'];
 
-  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const total = cart.reduce((sum, item) => {
+    const p = String(item.price).match(/\d+/) ? Number(String(item.price).match(/\d+/)![0]) : 0;
+    return sum + (p * item.quantity);
+  }, 0);
 
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
+    if (total <= 0) {
+      alert("অর্ডার করার মতো কোনো পণ্য নেই।");
+      return;
+    }
+
     setOrderStatus('ordering');
     try {
-      await addDoc(collection(db, 'orders'), {
-        userId: user.uid,
-        userName: user.displayName,
-        items: cart.map(item => `${item.name} x${item.quantity}`),
-        total,
-        status: 'pending',
-        createdAt: new Date().toISOString()
+      await runTransaction(db, async (transaction) => {
+        const walletRef = doc(db, 'wallets', user.uid);
+        const walletSnap = await transaction.get(walletRef);
+        const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
+
+        if (balance < total) {
+          throw new Error('insufficient_balance');
+        }
+
+        // 1. Create Order
+        const orderRef = doc(collection(db, 'orders'));
+        transaction.set(orderRef, {
+          userId: user.uid,
+          userName: user.displayName || user.email,
+          items: cart.map(item => `${item.name} x${item.quantity}`),
+          total,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+
+        // 2. Deduct & Record Transaction
+        transaction.update(walletRef, {
+          balance: increment(-total),
+          updatedAt: new Date().toISOString()
+        });
+
+        const txRef = doc(collection(db, 'transactions'));
+        transaction.set(txRef, {
+          userId: user.uid,
+          amount: total,
+          type: 'payment',
+          status: 'success',
+          targetId: orderRef.id,
+          targetName: 'Medicine Order',
+          details: cart.map(item => `${item.name} x${item.quantity}`).join(', '),
+          createdAt: new Date().toISOString()
+        });
       });
+
       setOrderStatus('success');
       setTimeout(() => {
         setCart([]);
         setShowCart(false);
         setOrderStatus('idle');
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Order error:", error);
+      if (error.message === 'insufficient_balance') {
+        alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
+      } else {
+        alert("অর্ডার করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+      }
       setOrderStatus('idle');
     }
   };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle } from 'lucide-react';
-import { collection, onSnapshot, query, addDoc, where, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, where, doc, getDoc, updateDoc, increment, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
@@ -86,58 +86,80 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
     
     // For services, we might need a default fee if it's a general request,
     // or the item price if a post is selected.
-    const price = post ? Number(post.price) : 0; // If general, maybe 0 for now or handled later
+    // improved price extraction: find first number in string
+    const priceRaw = post?.price || "";
+    const priceMatch = priceRaw.match(/\d+/);
+    const price = priceMatch ? Number(priceMatch[0]) : 0;
 
     setBookingStatus('booking');
     try {
       if (price > 0) {
-        // Check Wallet Balance
-        const walletRef = doc(db, 'wallets', user.uid);
-        const walletSnap = await getDoc(walletRef);
-        const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
+        await runTransaction(db, async (transaction) => {
+          const walletRef = doc(db, 'wallets', user.uid);
+          const walletSnap = await transaction.get(walletRef);
+          const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
 
-        if (balance < price) {
-          alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
-          setBookingStatus('idle');
-          return;
-        }
+          if (balance < price) {
+            throw new Error('insufficient_balance');
+          }
 
-        // Deduct & Record Transaction
-        await updateDoc(walletRef, {
-          balance: increment(-price),
-          updatedAt: new Date().toISOString()
+          // 1. Create Request
+          const requestRef = doc(collection(db, 'serviceRequests'));
+          transaction.set(requestRef, {
+            userId: user.uid,
+            userName: user.displayName || user.email,
+            providerId: selectedProvider.id,
+            providerName: selectedProvider.name,
+            providerType: type,
+            status: 'pending',
+            price: price,
+            createdAt: new Date().toISOString(),
+            details: post ? `Interested in: ${post.title}` : 'General inquiry'
+          });
+
+          // 2. Deduct & Record Transaction
+          transaction.update(walletRef, {
+            balance: increment(-price),
+            updatedAt: new Date().toISOString()
+          });
+
+          const txRef = doc(collection(db, 'transactions'));
+          transaction.set(txRef, {
+            userId: user.uid,
+            amount: price,
+            type: 'payment',
+            status: 'success',
+            targetId: requestRef.id,
+            targetName: selectedProvider.name,
+            details: post ? `Interested in: ${post.title}` : 'General inquiry',
+            createdAt: new Date().toISOString()
+          });
         });
-
-        await addDoc(collection(db, 'transactions'), {
+      } else {
+        await addDoc(collection(db, 'serviceRequests'), {
           userId: user.uid,
-          amount: price,
-          type: 'payment',
-          status: 'success',
-          targetName: selectedProvider.name,
-          details: post ? `Interested in: ${post.title}` : 'General inquiry',
-          createdAt: new Date().toISOString()
+          userName: user.displayName || user.email,
+          providerId: selectedProvider.id,
+          providerName: selectedProvider.name,
+          providerType: type,
+          status: 'pending',
+          price: price, // Added price field
+          createdAt: new Date().toISOString(),
+          details: post ? `Interested in: ${post.title}` : 'General inquiry'
         });
       }
-
-      await addDoc(collection(db, 'serviceRequests'), {
-        userId: user.uid,
-        userName: user.displayName || user.email,
-        providerId: selectedProvider.id,
-        providerName: selectedProvider.name,
-        providerType: type,
-        status: 'pending',
-        price: price, // Added price field
-        createdAt: new Date().toISOString(),
-        details: post ? `Interested in: ${post.title}` : 'General inquiry'
-      });
 
       setBookingStatus('success');
       setTimeout(() => {
         setBookingStatus('idle');
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Booking error:", error);
-      alert("Something went wrong. Please try again.");
+      if (error.message === 'insufficient_balance') {
+        alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
+      } else {
+        alert("বুকিং করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+      }
       setBookingStatus('idle');
     }
   };

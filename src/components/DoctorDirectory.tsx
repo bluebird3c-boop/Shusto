@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Star, Clock, Search } from 'lucide-react';
-import { collection, onSnapshot, query, addDoc, where, getDocs, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, where, getDocs, doc, getDoc, updateDoc, increment, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
@@ -76,47 +76,56 @@ export function DoctorDirectory() {
     
     setBookingStatus('booking');
     try {
-      // 1. Check Wallet Balance
-      const walletRef = doc(db, 'wallets', user.uid);
-      const walletSnap = await getDoc(walletRef);
-      const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
+      // Robustly parse fee: extract first number found in string
+      const feeRaw = String(bookingDoctor.fee);
+      const feeMatch = feeRaw.match(/\d+/);
+      const fee = feeMatch ? Number(feeMatch[0]) : 0;
 
-      if (balance < Number(bookingDoctor.fee)) {
-        alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
-        setBookingStatus('idle');
-        return;
-      }
+      // If fee is 0 or invalid, we handle it as free or error
+      // But usually doctor fee should be > 0
 
-      // 2. Create Appointment
-      const doctorUserId = bookingDoctor.userId || bookingDoctor.id;
+      await runTransaction(db, async (transaction) => {
+        const walletRef = doc(db, 'wallets', user.uid);
+        const walletSnap = await transaction.get(walletRef);
+        const balance = walletSnap.exists() ? walletSnap.data().balance || 0 : 0;
 
-      const appointmentData = {
-        userId: user.uid,
-        userName: user.displayName || 'Patient',
-        targetId: doctorUserId,
-        doctorName: bookingDoctor.name,
-        fee: Number(bookingDoctor.fee),
-        status: 'pending',
-        date: new Date().toISOString(),
-        type: 'video'
-      };
+        if (fee > 0 && balance < fee) {
+          throw new Error('insufficient_balance');
+        }
 
-      const appRef = await addDoc(collection(db, 'appointments'), appointmentData);
+        // 1. Create Appointment
+        const doctorUserId = bookingDoctor.userId || bookingDoctor.id;
+        const appRef = doc(collection(db, 'appointments'));
+        
+        transaction.set(appRef, {
+          userId: user.uid,
+          userName: user.displayName || 'Patient',
+          targetId: doctorUserId,
+          doctorName: bookingDoctor.name,
+          fee: fee,
+          status: 'pending',
+          date: new Date().toISOString(),
+          type: 'video'
+        });
 
-      // 3. Deduct & Record Transaction
-      await updateDoc(walletRef, {
-        balance: increment(-Number(bookingDoctor.fee)),
-        updatedAt: new Date().toISOString()
-      });
+        // 2. Deduct & Record Transaction (ONLY if fee > 0)
+        if (fee > 0) {
+          transaction.update(walletRef, {
+            balance: increment(-fee),
+            updatedAt: new Date().toISOString()
+          });
 
-      await addDoc(collection(db, 'transactions'), {
-        userId: user.uid,
-        amount: Number(bookingDoctor.fee),
-        type: 'payment',
-        status: 'success',
-        targetId: appRef.id,
-        targetName: bookingDoctor.name,
-        createdAt: new Date().toISOString()
+          const txRef = doc(collection(db, 'transactions'));
+          transaction.set(txRef, {
+            userId: user.uid,
+            amount: fee,
+            type: 'payment',
+            status: 'success',
+            targetId: appRef.id,
+            targetName: bookingDoctor.name,
+            createdAt: new Date().toISOString()
+          });
+        }
       });
 
       setBookingStatus('success');
@@ -125,9 +134,13 @@ export function DoctorDirectory() {
         setBookingStatus('idle');
         setBookingDoctor(null);
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Booking error:", error);
-      alert("Booking failed: " + (error instanceof Error ? error.message : "Unknown error"));
+      if (error.message === 'insufficient_balance') {
+        alert('আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই। দয়া করে টাকা যোগ করুন।');
+      } else {
+        alert("বুকিং করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+      }
       setBookingStatus('idle');
     }
   };
