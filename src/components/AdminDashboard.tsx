@@ -6,6 +6,8 @@ import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { TransactionsPanel } from './TransactionsPanel';
 
+import { AMBULANCE_ROUTES, LAB_SERVICES_PRESETS, PHYSIO_SERVICES_PRESETS } from '../constants';
+
 interface UserProfile {
   uid: string;
   displayName: string;
@@ -22,6 +24,7 @@ interface Doctor {
   image?: string;
   bmdcNumber?: string;
   experience?: string;
+  email: string;
 }
 
 interface Medicine {
@@ -34,11 +37,12 @@ interface Medicine {
   company?: string;
 }
 
-interface LabTest {
+interface GenericService {
   id: string;
   name: string;
   category: string;
   price: number;
+  type: 'lab' | 'physio';
 }
 
 interface Provider {
@@ -51,7 +55,7 @@ interface Provider {
 }
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'medicines' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances' | 'transactions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'patients' | 'doctors' | 'medicines' | 'pharmacies' | 'labs' | 'physios' | 'hospitals' | 'ambulances' | 'transactions' | 'services'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [manualDoctors, setManualDoctors] = useState<Doctor[]>([]);
   const [userDoctors, setUserDoctors] = useState<Doctor[]>([]);
@@ -61,6 +65,8 @@ export function AdminDashboard() {
   const [physios, setPhysios] = useState<Provider[]>([]);
   const [hospitals, setHospitals] = useState<Provider[]>([]);
   const [ambulances, setAmbulances] = useState<Provider[]>([]);
+  const [labTests, setLabTests] = useState<GenericService[]>([]);
+  const [physioServices, setPhysioServices] = useState<GenericService[]>([]);
   const [adminBalance, setAdminBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,10 +82,12 @@ export function AdminDashboard() {
 
   // Filter users based on search
   const filteredUsers = useMemo(() => {
-    return users.filter(u => 
-      u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      u.email.toLowerCase().includes(searchTerm.toLowerCase())
-    ).filter(u => activeTab === 'users' ? true : u.role === 'user');
+    return users.filter(u => {
+      const name = (u.displayName || 'User').toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const term = searchTerm.toLowerCase();
+      return name.includes(term) || email.includes(term);
+    }).filter(u => activeTab === 'users' ? true : u.role === 'user');
   }, [users, searchTerm, activeTab]);
 
   const handlePromoteUser = async () => {
@@ -135,13 +143,14 @@ export function AdminDashboard() {
       const uDocs = allUsers.filter(u => u.role === 'doctor').map(u => ({
         id: u.uid,
         name: u.displayName || 'Unnamed Doctor',
+        email: u.email || '',
         specialty: (u as any).specialty || 'General Physician',
         fee: (u as any).fee || 0,
         bmdcNumber: (u as any).bmdcNumber,
         experience: (u as any).experience,
         image: (u as any).image || u.photoURL,
         isUserAccount: true
-      })) as Doctor[];
+      })) as any[];
       setUserDoctors(uDocs);
     });
 
@@ -173,13 +182,41 @@ export function AdminDashboard() {
       setAmbulances(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Provider)));
     });
 
-    // Admin Wallet Listener - We query the wallets collection for the admin email's owner
+    const unsubLabTests = onSnapshot(collection(db, 'labTests'), (snapshot) => {
+      setLabTests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GenericService)));
+    });
+
+    const unsubPhysioServices = onSnapshot(collection(db, 'physioServices'), (snapshot) => {
+      setPhysioServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GenericService)));
+    });
+
+    setLoading(false);
+    return () => {
+      unsubUsers();
+      unsubDoctors();
+      unsubMedicines();
+      unsubPharmacies();
+      unsubLabs();
+      unsubPhysios();
+      unsubHospitals();
+      unsubAmbulances();
+      unsubLabTests();
+      unsubPhysioServices();
+    };
+  }, []);
+
+  // Dedicated Admin Wallet Listener
+  useEffect(() => {
     const adminEmail = 'shustobd@gmail.com';
-    const unsubAdminWallet = onSnapshot(collection(db, 'users'), (userSnapshot) => {
-      const adminUser = userSnapshot.docs.find(d => d.data().email === adminEmail);
-      if (adminUser) {
-        const adminUid = adminUser.id;
-        onSnapshot(doc(db, 'wallets', adminUid), (walletDoc) => {
+    const q = query(collection(db, 'users'), where('email', '==', adminEmail));
+    
+    let unsubWallet: (() => void) | null = null;
+    
+    const unsubUser = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const adminId = snapshot.docs[0].id;
+        if (unsubWallet) unsubWallet();
+        unsubWallet = onSnapshot(doc(db, 'wallets', adminId), (walletDoc) => {
           if (walletDoc.exists()) {
             setAdminBalance(walletDoc.data().balance || 0);
           }
@@ -187,16 +224,9 @@ export function AdminDashboard() {
       }
     });
 
-    setLoading(false);
     return () => {
-      unsubUsers();
-      unsubDoctors();
-      unsubPharmacies();
-      unsubLabs();
-      unsubPhysios();
-      unsubHospitals();
-      unsubAmbulances();
-      unsubAdminWallet();
+      unsubUser();
+      if (unsubWallet) unsubWallet();
     };
   }, []);
 
@@ -536,6 +566,26 @@ export function AdminDashboard() {
     }
   };
 
+  const seedServices = async () => {    if (!confirm('This will seed default services for Lab and Physio. Continue?')) return;
+    setLoading(true);
+    try {
+      for (const test of LAB_SERVICES_PRESETS) {
+        const id = `lab_${test.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'labTests', id), { ...test, id, type: 'lab' });
+      }
+      for (const service of PHYSIO_SERVICES_PRESETS) {
+        const id = `physio_${service.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'physioServices', id), { ...service, id, type: 'physio' });
+      }
+      showSuccess("Global services seeded!");
+    } catch (error) {
+      console.error("Seed error:", error);
+      alert("Failed to seed services.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const roles = [
     { id: 'user', label: 'User', icon: UserIcon, split: 0 },
     { id: 'admin', label: 'Admin', icon: Shield, split: 0 },
@@ -622,7 +672,7 @@ export function AdminDashboard() {
       <div className="space-y-6">
         {/* Row 1: Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
-          {(['users', 'patients', 'doctors', 'medicines', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances', 'transactions'] as const).map((tab) => (
+          {(['users', 'patients', 'doctors', 'medicines', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances', 'services', 'transactions'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -638,6 +688,7 @@ export function AdminDashboard() {
                tab === 'pharmacies' ? 'ফার্মেসি' :
                tab === 'labs' ? 'ল্যাব' :
                tab === 'physios' ? 'ফিজিওথেরাপি' :
+               tab === 'services' ? 'সার্ভিস ক্যাটালগ' :
                tab === 'hospitals' ? 'হাসপাতাল' : 
                tab === 'transactions' ? 'লেনদেন' : 'অ্যাম্বুলেন্স'}
             </button>
@@ -837,7 +888,27 @@ export function AdminDashboard() {
 
       <div className="bg-white rounded-[32px] border border-slate-100 overflow-hidden">
         {(activeTab === 'users' || activeTab === 'patients') && (
-          <div className="space-y-4">
+          <div className="p-8 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {activeTab === 'users' ? 'সকল ইউজার' : 'পেশেন্ট ম্যানেজমেন্ট'}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  {searchTerm ? 'সার্চ রেজাল্ট: ' : 'মোট ইউজার: '}
+                  <span className="font-bold text-slate-900">{filteredUsers.length}</span>
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={syncAllRoles}
+                  className="px-6 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl font-bold flex items-center gap-2 hover:bg-emerald-100 transition-all border border-emerald-100"
+                >
+                  <RefreshCcw size={18} /> রুলস সিঙ্ক করুন
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
               <Search className="text-slate-400" size={20} />
               <input 
@@ -1082,6 +1153,87 @@ export function AdminDashboard() {
         )}
         {activeTab === 'transactions' && (
           <TransactionsPanel isAdmin />
+        )}
+
+        {activeTab === 'services' && (
+          <div className="p-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Global Service Catalog</h2>
+                <p className="text-slate-500">Manage standard prices for Lab Tests and Physio Services.</p>
+              </div>
+              <button 
+                onClick={seedServices}
+                className="px-6 py-3 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 text-sm"
+              >
+                <Plus size={18} /> সীড ডিফল্ট সার্ভিস
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Lab Tests */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <FlaskConical className="text-emerald-500" /> Lab Tests
+                </h3>
+                <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+                  <table className="w-full text-left font-sans">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-widest font-bold">
+                      <tr>
+                        <th className="px-6 py-4">Test Name</th>
+                        <th className="px-6 py-4">Price</th>
+                        <th className="px-6 py-4"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-sm">
+                      {labTests.map(test => (
+                        <tr key={test.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-medium text-slate-900">{test.name}</td>
+                          <td className="px-6 py-4 font-bold text-emerald-600">৳{test.price}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => deleteItem('labTests', test.id)} className="text-red-400 hover:text-red-500 transition-colors">
+                               <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Physio Services */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Activity className="text-emerald-500" /> Physio Services
+                </h3>
+                <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+                  <table className="w-full text-left font-sans">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-widest font-bold">
+                      <tr>
+                        <th className="px-6 py-4">Service Name</th>
+                        <th className="px-6 py-4">Price</th>
+                        <th className="px-6 py-4"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-sm">
+                      {physioServices.map(service => (
+                        <tr key={service.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-medium text-slate-900">{service.name}</td>
+                          <td className="px-6 py-4 font-bold text-emerald-600">৳{service.price}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => deleteItem('physioServices', service.id)} className="text-red-400 hover:text-red-500 transition-colors">
+                               <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

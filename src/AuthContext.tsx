@@ -130,10 +130,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             const existingData = userDoc.data() as UserProfile;
             const email = firebaseUser.email?.toLowerCase().trim();
+            const displayName = firebaseUser.displayName || existingData.displayName || 'User';
+            const photoURL = firebaseUser.photoURL || existingData.photoURL || null;
             
-            // FIX: Ensure email field exists for old users so Admin can find them
-            if (!existingData.email && email) {
-              await updateDoc(userRef, { email });
+            // FIX: Ensure essential fields exist/sync for all users
+            if (!existingData.email || (!existingData.displayName && firebaseUser.displayName) || (!existingData.photoURL && firebaseUser.photoURL)) {
+              await updateDoc(userRef, { 
+                email: email || existingData.email || null,
+                displayName: displayName,
+                photoURL: photoURL
+              });
+              // Snapshot listener will trigger again
               return;
             }
 
