@@ -133,6 +133,13 @@ export function MedicineStore() {
           throw new Error('insufficient_balance');
         }
 
+        // Fetch Admin 
+        const adminQuery = query(collection(db, 'users'), where('email', '==', 'shustobd@gmail.com'), limit(1));
+        const adminSnap = await getDocs(adminQuery);
+        if (adminSnap.empty) throw new Error('admin_not_found');
+        const adminUid = adminSnap.docs[0].id;
+        const adminWalletRef = doc(db, 'wallets', adminUid);
+
         // 1. Create Order
         const orderRef = doc(collection(db, 'orders'));
         transaction.set(orderRef, {
@@ -144,12 +151,50 @@ export function MedicineStore() {
           createdAt: new Date().toISOString()
         });
 
-        // 2. Deduct & Record Transaction
+        // 2. Wallet Operations
         transaction.update(walletRef, {
           balance: increment(-total),
           updatedAt: new Date().toISOString()
         });
 
+        // Handle Referral logic
+        let adminBonus = total;
+        const userDoc = await transaction.get(doc(db, 'users', user.uid));
+        const userData = userDoc.data();
+        
+        if (userData?.referredBy) {
+          // 10% of profit (here assumed total is profit as it's direct buy from shusto)
+          const commission = total * 0.10;
+          const referrerWalletRef = doc(db, 'wallets', userData.referredBy);
+          
+          transaction.set(referrerWalletRef, {
+            uid: userData.referredBy,
+            balance: increment(commission),
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+
+          // Record Affiliate TX
+          const affTxRef = doc(collection(db, 'transactions'));
+          transaction.set(affTxRef, {
+            userId: userData.referredBy,
+            amount: commission,
+            type: 'affiliate_commission',
+            status: 'success',
+            details: `Commission from ${user.displayName}'s medicine order (Ref: ${orderRef.id})`,
+            createdAt: new Date().toISOString()
+          });
+
+          adminBonus -= commission;
+        }
+
+        // Credit Admin
+        transaction.set(adminWalletRef, {
+          uid: adminUid,
+          balance: increment(adminBonus),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        // 3. Record Main Transaction
         const txRef = doc(collection(db, 'transactions'));
         transaction.set(txRef, {
           userId: user.uid,

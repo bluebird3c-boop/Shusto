@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle, Navigation, ChevronDown, Activity, X } from 'lucide-react';
+import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle, Navigation, ChevronDown, Activity, X, Truck } from 'lucide-react';
 import { collection, onSnapshot, query, addDoc, where, doc, getDoc, updateDoc, increment, runTransaction, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
@@ -31,9 +31,10 @@ interface ServiceDirectoryProps {
 
 export function ServiceDirectory({ type, title, description }: ServiceDirectoryProps) {
   const { user } = useAuth();
-  const [activeView, setActiveView] = useState<'centers' | 'services'>('centers');
+  const [activeView, setActiveView] = useState<'centers' | 'services'>('services');
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [globalServices, setGlobalServices] = useState<any[]>([]);
+  const [allProviderPosts, setAllProviderPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
@@ -62,20 +63,36 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
   }, [type, pickupLocation, destinationLocation]);
 
   useEffect(() => {
+    // For all types, we now prioritize services over centers
+    setActiveView('services');
+
     const collectionName = type === 'pharmacy' ? 'pharmacies' : 
                          type === 'lab' ? 'labs' : 
                          type === 'physio' ? 'physios' : 
                          type === 'hospital' ? 'hospitals' : 'ambulances';
     
-    const q = query(collection(db, collectionName));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Still fetch providers for context/mapping if needed, but primary view is services
+    const qProviders = query(collection(db, collectionName));
+    const unsubProviders = onSnapshot(qProviders, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ServiceProvider[];
       setProviders(docs);
-      setLoading(false);
     });
+
+    // Fetch All Posts for Pharmacy and Hospital (to show all products directly)
+    let unsubPosts = () => {};
+    if (type === 'pharmacy' || type === 'hospital') {
+      const qPosts = query(
+        collection(db, 'posts'),
+        where('providerType', '==', type)
+      );
+      unsubPosts = onSnapshot(qPosts, (snapshot) => {
+        setAllProviderPosts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Post)));
+        setLoading(false);
+      });
+    }
 
     // Fetch Global Services if Lab or Physio
     let unsubGlobal = () => {};
@@ -84,11 +101,18 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
       const qGlobal = query(collection(db, globalColl));
       unsubGlobal = onSnapshot(qGlobal, (snapshot) => {
         setGlobalServices(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
       });
     }
 
+    // Ambulance loading state
+    if (type === 'ambulance') {
+      setLoading(false);
+    }
+
     return () => {
-      unsubscribe();
+      unsubProviders();
+      unsubPosts();
       unsubGlobal();
     };
   }, [type]);
@@ -157,6 +181,7 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
           transaction.set(requestRef, {
             userId: user.uid,
             userName: user.displayName || user.email,
+            userLocation: (user as any).location || 'Unknown',
             providerId: targetProviderId,
             providerName: targetProviderName,
             providerType: type,
@@ -190,6 +215,7 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
         await addDoc(collection(db, 'serviceRequests'), {
           userId: user.uid,
           userName: user.displayName || user.email,
+          userLocation: (user as any).location || 'Unknown',
           providerId: targetProviderId,
           providerName: targetProviderName,
           providerType: type,
@@ -228,6 +254,12 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
     s.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredAllPosts = allProviderPosts.filter(p => 
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.providerName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -236,121 +268,188 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
           <p className="text-slate-500">{description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          {(type === 'lab' || type === 'physio') && (
-            <div className="bg-white p-1 rounded-2xl border border-slate-100 flex shadow-sm">
-              <button 
-                onClick={() => setActiveView('centers')}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                  activeView === 'centers' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
-                )}
-              >
-                সেন্টারসমূহ
-              </button>
-              <button 
-                onClick={() => setActiveView('services')}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                  activeView === 'services' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:bg-slate-50"
-                )}
-              >
-                সকল সার্ভিস
-              </button>
+          {activeView !== 'ambulance_form' && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder={`সার্চ করুন...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-64 font-sans"
+              />
             </div>
           )}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder={`সার্চ করুন...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-64 font-sans"
-            />
-          </div>
         </div>
       </div>
 
+      {user && !(user as any).location && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-4 text-amber-800 animate-in fade-in slide-in-from-top-2">
+           <MapPin className="flex-shrink-0 text-amber-500" />
+           <p className="text-sm font-medium">
+             আপনার প্রোফাইল থেকে এলাকা (Area) সেট করা নেই। দয়া করে প্রোফাইল থেকে এলাকা সেট করুন যাতে আপনার নিকটবর্তী প্রোভাইডাররা সার্ভিস অনুরোধটি দ্রুত দেখতে পায়।
+           </p>
+        </div>
+      )}
+
+      {/* Ambulance Direct Booking View */}
+      {type === 'ambulance' && (
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-slate-900 rounded-[40px] p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center">
+                  <Navigation size={24} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">অ্যাম্বুলেন্স বুক করুন</h3>
+                  <p className="text-slate-400">সরাসরি লোকেশন সিলেক্ট করে জেনুইন প্রাইসে অ্যাম্বুলেন্স দ্রুত ডাকুন।</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">পিকআপ পয়েন্ট</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400" size={20} />
+                    <select 
+                      value={pickupLocation} 
+                      onChange={(e) => setPickupLocation(e.target.value)}
+                      className="w-full pl-12 pr-4 py-5 bg-white/10 border border-white/10 rounded-3xl focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none font-bold text-lg"
+                    >
+                      <option value="" className="text-slate-900">পিকআপ সিলেক্ট করুন</option>
+                      {Array.from(new Set(AMBULANCE_ROUTES.flatMap(r => [r.from, r.to]))).map(loc => (
+                        <option key={loc} value={loc} className="text-slate-900">{loc}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50" size={20} />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">গন্তব্যস্থল</label>
+                  <div className="relative">
+                    <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-400" size={20} />
+                    <select 
+                      value={destinationLocation} 
+                      onChange={(e) => setDestinationLocation(e.target.value)}
+                      className="w-full pl-12 pr-4 py-5 bg-white/10 border border-white/10 rounded-3xl focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none font-bold text-lg"
+                    >
+                      <option value="" className="text-slate-900">গন্তব্য সিলেক্ট করুন</option>
+                      {Array.from(new Set(AMBULANCE_ROUTES.flatMap(r => [r.from, r.to]))).map(loc => (
+                        <option key={loc} value={loc} className="text-slate-900">{loc}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50" size={20} />
+                  </div>
+                </div>
+              </div>
+
+              {ambulancePrice > 0 && (
+                <div className="bg-emerald-500/20 border border-emerald-500/30 p-8 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-bottom-8">
+                  <div>
+                    <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-1">Genuine Price (Shusto Identity)</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-black">৳{ambulancePrice}</span>
+                      <span className="text-slate-400 text-sm">/ নির্ধারিত প্রাইস</span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleBook()}
+                    disabled={bookingStatus !== 'idle'}
+                    className="w-full md:w-auto px-12 py-5 bg-emerald-500 text-white font-black rounded-2xl hover:bg-emerald-600 transition-all shadow-2xl shadow-emerald-500/40 disabled:opacity-50 text-xl"
+                  >
+                    {bookingStatus === 'booking' ? 'লোডিং...' : bookingStatus === 'success' ? 'সফল হয়েছে!' : 'বুকিং কনফার্ম করুন'}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+              <Truck size={300} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading ? (
-        <div className="p-12 text-center text-slate-400">Loading {type}s...</div>
-      ) : activeView === 'centers' ? (
-        <>
-          {filteredProviders.length === 0 ? (
+        <div className="p-12 text-center text-slate-400">Loading...</div>
+      ) : activeView === 'services' && (type === 'lab' || type === 'physio') ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredGlobalServices.map((service) => (
+              <div 
+                key={service.id} 
+                className="bg-white p-6 rounded-[32px] border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                    <CheckCircle size={24} />
+                  </div>
+                  <p className="text-emerald-600 font-black text-[10px] uppercase tracking-tighter mb-1">{service.category || type}</p>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">{service.name}</h3>
+                </div>
+
+                <div className="mt-8 flex items-center justify-between pt-6 border-t border-slate-50">
+                  <div className="text-right flex-1">
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mb-1">Genuine Price</p>
+                    <p className="text-xl font-black text-slate-900 mb-1">৳{service.price}</p>
+                    <button 
+                      onClick={() => setSelectedGlobalService(service)}
+                      className="w-full mt-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-xs hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                    >
+                      বুক করুন
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : activeView === 'services' && (type === 'pharmacy' || type === 'hospital') ? (
+        <div className="space-y-6">
+          {filteredAllPosts.length === 0 ? (
             <div className="p-12 text-center bg-white rounded-[40px] border border-dashed border-slate-200 text-slate-400">
-              No {type}s found.
+              এখনো কোনো সেবা বা পণ্য পাওয়া যায়নি।
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProviders.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="bg-white p-6 rounded-[32px] border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all group"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                      <MapPin size={28} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {filteredAllPosts.map((post) => (
+                <div key={post.id} className="bg-white p-5 rounded-[32px] border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all flex flex-col justify-between">
+                  <div className="space-y-4">
+                    {post.image && (
+                      <img src={post.image} alt={post.title} className="w-full h-40 object-cover rounded-2xl mb-2" />
+                    )}
+                    <div>
+                      <span className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter bg-emerald-50 px-2 py-0.5 rounded-full mb-2 inline-block">
+                        {post.providerName || 'Shusto Verified'}
+                      </span>
+                      <h3 className="font-bold text-slate-900 line-clamp-1 mb-1">{post.title}</h3>
+                      <p className="text-slate-500 text-xs line-clamp-2">{post.description}</p>
                     </div>
-                    <a 
-                      href={`tel:${provider.contact}`}
-                      className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                    >
-                      <Phone size={20} />
-                    </a>
                   </div>
                   
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">{provider.name}</h3>
-                  <div className="space-y-2 mb-6 text-sm">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <MapPin size={14} />
-                      <span className="line-clamp-1">{provider.location}</span>
+                  <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">Shusto Price</p>
+                      <p className="text-lg font-black text-slate-900">৳{post.price}</p>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Phone size={14} />
-                      <span>{provider.contact}</span>
-                    </div>
+                    <button 
+                      onClick={() => {
+                        const originalProvider = providers.find(p => p.id === post.providerId || p.id === `u_${post.providerId}`);
+                        if (originalProvider) setSelectedProvider(originalProvider);
+                        handleBook(post);
+                      }}
+                      className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-bold text-xs hover:bg-emerald-600 transition-all shadow-lg"
+                    >
+                      কিনুন
+                    </button>
                   </div>
-
-                  <button 
-                    onClick={() => setSelectedProvider(provider)}
-                    className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-                  >
-                    দেখুন
-                    <ExternalLink size={16} />
-                  </button>
                 </div>
               ))}
             </div>
           )}
-        </>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredGlobalServices.map((service) => (
-            <div
-              key={service.id}
-              className="bg-white p-6 rounded-[32px] border border-slate-100 flex items-center justify-between group hover:border-emerald-200 hover:shadow-lg transition-all"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors">
-                  {type === 'lab' ? <Tag size={24} /> : <Activity size={24} />}
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mb-0.5">{service.category}</p>
-                  <h3 className="text-lg font-bold text-slate-900">{service.name}</h3>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-black text-slate-900 mb-1">৳{service.price}</p>
-                <button 
-                  onClick={() => setSelectedGlobalService(service)}
-                  className="text-emerald-500 font-bold text-sm hover:underline"
-                >
-                  বুক করুন
-                </button>
-              </div>
-            </div>
-          ))}
         </div>
-      )}
+      ) : null}
 
       {/* Global Service Booking Modal */}
       {selectedGlobalService && (

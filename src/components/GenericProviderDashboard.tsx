@@ -9,10 +9,13 @@ interface ServiceRequest {
   id: string;
   userId: string;
   userName: string;
-  providerId: string;
+  userLocation?: string;
+  providerId: string | null;
   providerName: string;
   providerType: string;
   status: string;
+  price?: number;
+  details?: string;
   createdAt: string;
 }
 
@@ -42,11 +45,19 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
   const [activeTab, setActiveTab] = useState<'requests' | 'posts'>('requests');
   const [showAddPost, setShowAddPost] = useState(false);
   const [newPost, setNewPost] = useState({ title: '', description: '', price: '', image: '' });
+  const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
     if (!user) return;
-    
-    // Requests listener
+
+    // Wallet balance listener
+    const unsubWallet = onSnapshot(doc(db, 'wallets', user.uid), (doc) => {
+      if (doc.exists()) {
+        setWalletBalance(doc.data().balance || 0);
+      }
+    });
+
+    // Requests listener - show direct orders OR global orders of this type
     const qRequests = query(
       collection(db, 'serviceRequests'), 
       where('providerType', '==', type)
@@ -57,7 +68,30 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
         id: doc.id,
         ...doc.data()
       })) as ServiceRequest[];
-      setRequests(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+
+      // Filter: Show direct orders for this provider OR general orders for "Any Center" in the same location
+      const providerLocation = (user as any).location;
+      
+      const filteredList = list.filter(req => {
+        // Direct order - always show
+        if (req.providerId === user.uid || req.providerId === `u_${user.uid}`) {
+          return true;
+        }
+        
+        // General order - filter by type (already done in query) AND location
+        if (req.providerId === null) {
+          // If provider has no location specified, show all general orders for now (fallback)
+          if (!providerLocation || providerLocation === 'Pending') return true;
+          
+          // Match by location (case insensitive, partial match)
+          return req.userLocation?.toLowerCase().includes(providerLocation.toLowerCase()) || 
+                 providerLocation.toLowerCase().includes(req.userLocation?.toLowerCase() || "");
+        }
+        
+        return false;
+      });
+
+      setRequests(filteredList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       setLoading(false);
     });
 
@@ -77,6 +111,7 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
     });
 
     return () => {
+      unsubWallet();
       unsubRequests();
       unsubPosts();
     };
@@ -92,12 +127,13 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
         if (reqSnap.exists()) {
           const reqData = reqSnap.data();
           const amount = reqData.price || 0;
+          const userId = reqData.userId;
 
           if (amount > 0) {
             const { calculateRevenueSplit } = await import('../utils/revenueSplit');
             const { providerShare, shustoShare } = calculateRevenueSplit(amount, type);
 
-            // Update Provider Wallet
+            // 1. Update Provider Wallet
             const providerWalletRef = doc(db, 'wallets', user.uid);
             await setDoc(providerWalletRef, {
               uid: user.uid,
@@ -105,7 +141,36 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
               updatedAt: new Date().toISOString()
             }, { merge: true });
 
-            // Update Admin Wallet
+            // 2. Handle Referral Commission (10% of Shusto's Share)
+            let finalShustoShare = shustoShare;
+            const userSnap = await getDoc(doc(db, 'users', userId));
+            if (userSnap.exists()) {
+              const userData = userSnap.data();
+              if (userData.referredBy) {
+                const commission = shustoShare * 0.10;
+                const referrerRef = doc(db, 'wallets', userData.referredBy);
+                
+                await setDoc(referrerRef, {
+                  uid: userData.referredBy,
+                  balance: increment(commission),
+                  updatedAt: new Date().toISOString()
+                }, { merge: true });
+
+                // Record Affiliate Transaction
+                await addDoc(collection(db, 'transactions'), {
+                  userId: userData.referredBy, // The pharmacy/state who gets the commission
+                  amount: commission,
+                  type: 'affiliate_commission',
+                  status: 'success',
+                  details: `Commission from ${reqData.userName}'s purchase (Ref: ${id})`,
+                  createdAt: new Date().toISOString()
+                });
+
+                finalShustoShare -= commission;
+              }
+            }
+
+            // 3. Update Admin Wallet (Shusto's Remaining Profit)
             const adminQuery = query(collection(db, 'users'), where('email', '==', 'shustobd@gmail.com'), limit(1));
             const adminSnap = await getDocs(adminQuery);
             if (!adminSnap.empty) {
@@ -113,7 +178,7 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
               const adminWalletRef = doc(db, 'wallets', adminUid);
               await setDoc(adminWalletRef, {
                 uid: adminUid,
-                balance: increment(shustoShare),
+                balance: increment(finalShustoShare),
                 updatedAt: new Date().toISOString()
               }, { merge: true });
 
@@ -123,7 +188,7 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
                 providerId: user.uid,
                 amount: amount,
                 providerShare,
-                shustoShare,
+                shustoShare: finalShustoShare,
                 type: 'payment',
                 status: 'success',
                 targetId: id,
@@ -168,6 +233,44 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
 
   return (
     <div className="space-y-8">
+      {type === 'pharmacy' && (
+        <div className="bg-emerald-900 text-white p-8 rounded-[40px] relative overflow-hidden shadow-2xl">
+          <div className="relative z-10">
+            <h2 className="text-2xl font-bold mb-2">Reffaral & State Status</h2>
+            <p className="text-emerald-300 mb-6">আমাদের রেফারেল প্রোগ্রামের মাধ্যমে ১০% এক্সট্রা ইনকাম করুন।</p>
+            
+            <div className="flex flex-wrap gap-6 items-end">
+              <div className="flex-1 min-w-[300px]">
+                <label className="block text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">আপনার রেফারেল লিংক</label>
+                <div className="flex gap-2">
+                  <input 
+                    readOnly 
+                    value={`${window.location.origin}?ref=${user?.uid}`}
+                    className="flex-1 bg-white/10 border border-white/10 px-4 py-3 rounded-xl font-mono text-xs focus:outline-none"
+                  />
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}?ref=${user?.uid}`);
+                      alert("লিংক কপি করা হয়েছে!");
+                    }}
+                    className="px-6 py-3 bg-white text-emerald-900 font-bold rounded-xl hover:bg-emerald-50 transition-all"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/10 min-w-[200px]">
+                <p className="text-[10px] text-emerald-400 font-bold uppercase mb-1">রেফারেল পেমেন্ট (১০%)</p>
+                <p className="text-2xl font-black">৳{Math.round(walletBalance * 0.1)} <span className="text-[10px] font-normal text-emerald-300">Est. Bonus</span></p>
+              </div>
+            </div>
+          </div>
+          <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+            <Tag size={300} />
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
@@ -183,21 +286,27 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
           >
             অনুরোধসমূহ
           </button>
-          <button 
-            onClick={() => setActiveTab('posts')}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-              activeTab === 'posts' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-500 hover:bg-slate-50"
-            )}
-          >
-            পোস্ট ম্যানেজ করুন
-          </button>
+          {type !== 'lab' && type !== 'physio' && (
+            <button 
+              onClick={() => setActiveTab('posts')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                activeTab === 'posts' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              পোস্ট ম্যানেজ করুন
+            </button>
+          )}
         </div>
       </div>
 
       {activeTab === 'requests' ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-3xl border border-slate-100">
+              <p className="text-sm font-medium text-slate-400 mb-1">ব্যালেন্স</p>
+              <p className="text-3xl font-bold text-slate-900 font-sans">৳{walletBalance}</p>
+            </div>
             <div className="bg-white p-6 rounded-3xl border border-slate-100">
               <p className="text-sm font-medium text-slate-400 mb-1">নতুন অনুরোধ</p>
               <p className="text-3xl font-bold text-slate-900">{requests.filter(r => r.status === 'pending').length}</p>
@@ -230,6 +339,7 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
                       </div>
                       <div>
                         <h3 className="font-bold text-slate-900 text-lg">{req.userName}</h3>
+                        <p className="text-xs text-emerald-600 font-bold mb-1">{req.userLocation ? `Location: ${req.userLocation}` : 'Location: Not specified'}</p>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
                           <span className="flex items-center gap-1"><Clock size={14} /> {new Date(req.createdAt).toLocaleString()}</span>
                           <span className={cn(
@@ -242,6 +352,11 @@ export function GenericProviderDashboard({ type, title, description }: GenericPr
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {req.providerId === null && req.status === 'pending' && (
+                         <div className="px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-full border border-amber-100">
+                           সাধারণ অনুরোধ (General)
+                         </div>
+                      )}
                       {req.status === 'pending' && (
                         <>
                           <button 

@@ -685,7 +685,7 @@ export function AdminDashboard() {
                tab === 'patients' ? 'রোগী' :
                tab === 'doctors' ? 'ডাক্তার' :
                tab === 'medicines' ? 'ঔষধ' :
-               tab === 'pharmacies' ? 'ফার্মেসি' :
+               tab === 'pharmacies' ? 'স্টেট (State)' :
                tab === 'labs' ? 'ল্যাব' :
                tab === 'physios' ? 'ফিজিওথেরাপি' :
                tab === 'services' ? 'সার্ভিস ক্যাটালগ' :
@@ -716,7 +716,7 @@ export function AdminDashboard() {
               )}
             >
               <Plus size={18} /> {
-                activeTab === 'pharmacies' ? 'ফার্মেসি যোগ করুন' :
+                activeTab === 'pharmacies' ? 'নতুন স্টেট যোগ করুন' :
                 activeTab === 'labs' ? 'ল্যাব যোগ করুন' :
                 activeTab === 'physios' ? 'ফিজিওথেরাপি যোগ করুন' :
                 activeTab === 'hospitals' ? 'হাসপাতাল যোগ করুন' :

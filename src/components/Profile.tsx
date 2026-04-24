@@ -12,7 +12,8 @@ export function Profile() {
   const [formData, setFormData] = useState({
     displayName: user?.displayName || '',
     address: user?.address || '',
-    photoURL: user?.photoURL || ''
+    photoURL: user?.photoURL || '',
+    location: (user as any)?.location || ''
   });
 
   const handleSave = async () => {
@@ -23,7 +24,8 @@ export function Profile() {
       await updateDoc(userRef, {
         displayName: formData.displayName,
         address: formData.address,
-        photoURL: formData.photoURL
+        photoURL: formData.photoURL,
+        location: formData.location
       });
       setIsEditing(false);
     } catch (error) {
@@ -39,22 +41,41 @@ export function Profile() {
     setLoading(true);
     try {
       const email = user.email.toLowerCase().trim();
-      const docQuery = query(collection(db, 'doctors'), where('email', '==', email));
-      const docSnapshot = await getDocs(docQuery);
+      const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
+      let found = false;
+
+      for (const coll of providerCollections) {
+        const qDocs = query(collection(db, coll), where('email', '==', email));
+        const snapshot = await getDocs(qDocs);
+        
+        if (!snapshot.empty) {
+          const data = snapshot.docs[0].data();
+          const newRole = coll === 'doctors' ? 'doctor' : 
+                         coll === 'pharmacies' ? 'pharmacy' : 
+                         coll === 'labs' ? 'lab' : 
+                         coll === 'physios' ? 'physio' : 
+                         coll === 'hospitals' ? 'hospital' : 'ambulance';
+
+          const updateData: any = { role: newRole };
+          if (newRole === 'doctor') {
+            updateData.specialty = data.specialty;
+            updateData.fee = data.fee;
+            updateData.bmdcNumber = data.bmdcNumber;
+            updateData.experience = data.experience;
+          }
+          if (data.location) updateData.location = data.location;
+          if (data.contact) updateData.contact = data.contact;
+
+          await updateDoc(doc(db, 'users', user.uid), updateData);
+          alert(`Role synced! You are now a ${newRole.charAt(0).toUpperCase() + newRole.slice(1)}.`);
+          found = true;
+          window.location.reload();
+          break;
+        }
+      }
       
-      if (!docSnapshot.empty) {
-        const docData = docSnapshot.docs[0].data();
-        await updateDoc(doc(db, 'users', user.uid), { 
-          role: 'doctor',
-          specialty: docData.specialty,
-          fee: docData.fee,
-          bmdcNumber: docData.bmdcNumber,
-          experience: docData.experience
-        });
-        alert("Role synced! You are now a Doctor.");
-        window.location.reload();
-      } else {
-        alert("No doctor record found for your email. Please contact Admin.");
+      if (!found) {
+        alert("No professional record found for your email. Please contact Admin.");
       }
     } catch (error) {
       console.error("Sync error:", error);
@@ -116,7 +137,7 @@ export function Profile() {
             </div>
             <h2 className="text-2xl font-bold text-slate-900">{user?.displayName}</h2>
             <p className="text-slate-500 font-medium uppercase tracking-widest text-xs bg-slate-50 px-3 py-1 rounded-full mt-2">
-              {user?.role}
+              {user?.role === 'pharmacy' ? 'State' : user?.role}
             </p>
           </div>
 
@@ -147,6 +168,23 @@ export function Profile() {
                 className="w-full px-4 py-4 bg-slate-100 border-none rounded-2xl text-slate-500 font-medium cursor-not-allowed"
               />
               <p className="text-[10px] text-slate-400 mt-1 ml-1">ইমেইল পরিবর্তন করা সম্ভব নয়।</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">এলাকা (Area / Location)</label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <MapPin size={20} />
+                </div>
+                <input 
+                  disabled={!isEditing}
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                  placeholder="আপনার এলাকা (যেমন: মিরপুর, ঢাকা)"
+                />
+              </div>
             </div>
 
             <div>
@@ -187,7 +225,8 @@ export function Profile() {
                     setFormData({
                       displayName: user?.displayName || '',
                       address: user?.address || '',
-                      photoURL: user?.photoURL || ''
+                      photoURL: user?.photoURL || '',
+                      location: (user as any)?.location || ''
                     });
                   }}
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"

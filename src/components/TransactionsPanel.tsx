@@ -17,10 +17,11 @@ interface Transaction {
   id: string;
   userId: string;
   amount: number;
-  type: 'payment' | 'add_money' | 'withdrawal';
+  type: 'payment' | 'add_money' | 'withdrawal' | 'affiliate_commission';
   status: 'pending' | 'success' | 'failed';
   method?: string;
   phoneNumber?: string;
+  details?: string;
   createdAt: string;
   providerId?: string;
   providerShare?: number;
@@ -30,7 +31,7 @@ interface Transaction {
 export function TransactionsPanel({ isAdmin = false, currentUserId }: { isAdmin?: boolean, currentUserId?: string }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'payment' | 'add_money' | 'withdrawal'>('all');
+  const [filter, setFilter] = useState<'all' | 'payment' | 'add_money' | 'withdrawal' | 'affiliate_commission'>('all');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -103,12 +104,12 @@ export function TransactionsPanel({ isAdmin = false, currentUserId }: { isAdmin?
           </div>
           
           <div className="flex bg-white p-1 rounded-xl border border-slate-200">
-            {(['all', 'payment', 'add_money', 'withdrawal'] as const).map(f => (
+            {(['all', 'payment', 'add_money', 'withdrawal', 'affiliate_commission'] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all",
+                  "px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap",
                   filter === f ? "bg-emerald-500 text-white" : "text-slate-500 hover:text-slate-900"
                 )}
               >
@@ -139,13 +140,15 @@ export function TransactionsPanel({ isAdmin = false, currentUserId }: { isAdmin?
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center",
                         tx.type === 'add_money' ? "bg-emerald-100 text-emerald-600" : 
-                        tx.type === 'withdrawal' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600"
+                        tx.type === 'withdrawal' ? "bg-rose-100 text-rose-600" : 
+                        tx.type === 'affiliate_commission' ? "bg-indigo-100 text-indigo-600" : "bg-blue-100 text-blue-600"
                       )}>
-                        {tx.type === 'add_money' ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
+                        {tx.type === 'add_money' ? <ArrowDownLeft size={20} /> : 
+                         tx.type === 'affiliate_commission' ? <DollarSign size={20} /> : <ArrowUpRight size={20} />}
                       </div>
                       <div>
                         <p className="font-bold text-slate-900 capitalize text-sm">{tx.type.replace('_', ' ')}</p>
-                        {tx.method && <p className="text-[10px] text-slate-400 font-bold uppercase">{tx.method} - {tx.phoneNumber}</p>}
+                        {(tx.method || tx.details) && <p className="text-[10px] text-slate-400 font-bold uppercase">{tx.method || tx.details} {tx.phoneNumber && `- ${tx.phoneNumber}`}</p>}
                       </div>
                     </div>
                   </td>

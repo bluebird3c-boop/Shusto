@@ -50,7 +50,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     } else if (user?.role === 'doctor') {
       dashboardItem = { id: 'dashboard', label: 'ডাক্তার প্যানেল', icon: Stethoscope };
     } else if (user?.role === 'pharmacy') {
-      dashboardItem = { id: 'dashboard', label: 'ফার্মেসি প্যানেল', icon: Pill };
+      dashboardItem = { id: 'dashboard', label: 'স্টেট প্যানেল (State)', icon: Pill };
     } else if (user?.role === 'physio') {
       dashboardItem = { id: 'dashboard', label: 'ফিজিওথেরাপি প্যানেল', icon: Activity };
     } else if (user?.role === 'hospital') {
@@ -94,7 +94,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
                   {user?.role === 'admin' ? 'অ্যাডমিন' : 
                    user?.role === 'doctor' ? 'ডাক্তার' : 
-                   user?.role === 'pharmacy' ? 'ফার্মেসি' : 
+                   user?.role === 'pharmacy' ? 'স্টেট (State)' : 
                    user?.role === 'physio' ? 'ফিজিওথেরাপি' : 
                    user?.role === 'hospital' ? 'হাসপাতাল' : 
                    user?.role === 'ambulance' ? 'অ্যাম্বুলেন্স' : 

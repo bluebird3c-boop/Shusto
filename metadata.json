@@ -1,5 +1,5 @@
 {
   "name": "Shusto",
-  "description": "Shusto is your all-in-one telehealth companion. Connect with doctors, order medicines, book lab tests, and manage your health records seamlessly from your mobile device.",
+  "description": "Shusto is your all-in-one telehealth companion. Connect with doctors, order medicines, book lab tests, and manage your health records. Now featuring a referral program for 'States' (Pharmacies) to earn 10% commission on referrals.",
   "requestFramePermissions": ["camera", "microphone"]
 }

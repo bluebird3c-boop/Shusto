@@ -206,6 +206,15 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Capture referral code from URL
+    const params = new URLSearchParams(window.location.search);
+    const referralUID = params.get('ref');
+    if (referralUID) {
+      sessionStorage.setItem('shusto_referral', referralUID);
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <AppContent />

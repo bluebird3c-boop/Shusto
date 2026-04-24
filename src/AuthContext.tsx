@@ -9,6 +9,8 @@ interface UserProfile {
   email: string | null;
   photoURL: string | null;
   address?: string;
+  location?: string;
+  referredBy?: string; // UID of the pharmacy/state that referred this user
   role: 'user' | 'admin' | 'doctor' | 'pharmacy' | 'physio' | 'hospital' | 'ambulance' | 'lab';
 }
 
@@ -76,6 +78,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const isDefaultAdmin = email === 'shustobd@gmail.com';
             let role = isDefaultAdmin ? 'admin' : (manualData?.role || 'user');
             
+            // Check for referral code in session storage
+            const referralUID = sessionStorage.getItem('shusto_referral');
+            
             // Proactive Provider Check: Check all provider collections by email if not found in manual placeholder
             if (role === 'user' && email) {
               const providerCollections = ['doctors', 'pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'];
@@ -106,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: email,
               photoURL: firebaseUser.photoURL || manualData?.photoURL || null,
               role: role as any,
+              referredBy: referralUID || manualData?.referredBy || undefined,
               // Copy all additional fields from manual placeholder (BMDC, Fee, Specialty, etc.)
               ...(manualData || {})
             };
