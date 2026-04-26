@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle, Navigation, ChevronDown, Activity, X, Truck } from 'lucide-react';
+import { Search, MapPin, Phone, ExternalLink, Clock, CheckCircle, Tag, XCircle, Navigation, ChevronDown, Activity, X, Truck, Filter } from 'lucide-react';
 import { collection, onSnapshot, query, addDoc, where, doc, getDoc, updateDoc, increment, runTransaction, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { cn } from '../lib/utils';
 import { AMBULANCE_ROUTES } from '../constants';
+import { BANGLADESH_LOCATIONS } from '../constants/locations';
 
 interface ServiceProvider {
   id: string;
@@ -37,6 +38,8 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
   const [allProviderPosts, setAllProviderPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDivision, setSelectedDivision] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
   const [selectedGlobalService, setSelectedGlobalService] = useState<any | null>(null);
   const [providerPosts, setProviderPosts] = useState<Post[]>([]);
@@ -298,21 +301,28 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
     );
   };
 
-  const filteredProviders = providers.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProviders = providers.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         p.location.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDivision = !selectedDivision || (p as any).division === selectedDivision;
+    const matchesDistrict = !selectedDistrict || (p as any).district === selectedDistrict;
+    return matchesSearch && matchesDivision && matchesDistrict;
+  });
 
   const filteredGlobalServices = globalServices.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredAllPosts = allProviderPosts.filter(p => 
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.providerName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAllPosts = allProviderPosts.filter(p => {
+    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         p.providerName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const provider = providers.find(prov => prov.id === p.providerId || prov.id === `u_${p.providerId}`);
+    const matchesDivision = !selectedDivision || (provider as any)?.division === selectedDivision;
+    const matchesDistrict = !selectedDistrict || (provider as any)?.district === selectedDistrict;
+    return matchesSearch && matchesDivision && matchesDistrict;
+  });
 
   return (
     <div className="space-y-8">
@@ -322,6 +332,35 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
           <p className="text-slate-500">{description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+            <Filter size={16} className="text-slate-400" />
+            <select
+              value={selectedDivision}
+              onChange={(e) => {
+                setSelectedDivision(e.target.value);
+                setSelectedDistrict('');
+              }}
+              className="text-xs font-bold text-slate-600 focus:outline-none bg-transparent"
+            >
+              <option value="">সকল বিভাগ</option>
+              {BANGLADESH_LOCATIONS.map(l => (
+                <option key={l.division} value={l.division}>{l.division}</option>
+              ))}
+            </select>
+            <div className="w-px h-4 bg-slate-200 mx-1" />
+            <select
+              value={selectedDistrict}
+              onChange={(e) => setSelectedDistrict(e.target.value)}
+              disabled={!selectedDivision}
+              className="text-xs font-bold text-slate-600 focus:outline-none bg-transparent disabled:opacity-50"
+            >
+              <option value="">সকল জেলা</option>
+              {selectedDivision && BANGLADESH_LOCATIONS.find(l => l.division === selectedDivision)?.districts.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
           {activeView !== 'ambulance_form' && (
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

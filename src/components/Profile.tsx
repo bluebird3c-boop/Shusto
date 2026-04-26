@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { User, MapPin, Camera, Save, X, Loader2, RefreshCcw } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { BANGLADESH_LOCATIONS } from '../constants/locations';
 
 export function Profile() {
   const { user } = useAuth();
@@ -13,7 +14,9 @@ export function Profile() {
     displayName: user?.displayName || '',
     address: user?.address || '',
     photoURL: user?.photoURL || '',
-    location: (user as any)?.location || ''
+    location: (user as any)?.location || '',
+    division: user?.division || '',
+    district: user?.district || ''
   });
 
   const handleSave = async () => {
@@ -25,7 +28,9 @@ export function Profile() {
         displayName: formData.displayName,
         address: formData.address,
         photoURL: formData.photoURL,
-        location: formData.location
+        location: formData.location,
+        division: formData.division,
+        district: formData.district
       });
       setIsEditing(false);
     } catch (error) {
@@ -61,7 +66,12 @@ export function Profile() {
             locationName = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
           }
 
-          setFormData(prev => ({ ...prev, location: locationName }));
+          setFormData(prev => ({ 
+            ...prev, 
+            location: locationName,
+            division: data.address?.state || prev.division,
+            district: data.address?.city || data.address?.town || data.address?.village || prev.district
+          }));
           // Also set address if it's empty
           if (!formData.address && data.display_name) {
             setFormData(prev => ({ ...prev, address: data.display_name }));
@@ -215,6 +225,38 @@ export function Profile() {
               <p className="text-[10px] text-slate-400 mt-1 ml-1">ইমেইল পরিবর্তন করা সম্ভব নয়।</p>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">বিভাগ (Division)</label>
+                <select
+                  disabled={!isEditing}
+                  value={formData.division}
+                  onChange={(e) => setFormData({...formData, division: e.target.value, district: ''})}
+                  className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60 appearance-none"
+                >
+                  <option value="">বিভাগ নির্বাচন করুন</option>
+                  {BANGLADESH_LOCATIONS.map((loc) => (
+                    <option key={loc.division} value={loc.division}>{loc.division}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">জেলা (District)</label>
+                <select
+                  disabled={!isEditing || !formData.division}
+                  value={formData.district}
+                  onChange={(e) => setFormData({...formData, district: e.target.value})}
+                  className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60 appearance-none"
+                >
+                  <option value="">জেলা নির্বাচন করুন</option>
+                  {formData.division && BANGLADESH_LOCATIONS.find(l => l.division === formData.division)?.districts.map((dist) => (
+                    <option key={dist} value={dist}>{dist}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">এলাকা (Area / Location)</label>
               <div className="relative">
@@ -281,7 +323,9 @@ export function Profile() {
                       displayName: user?.displayName || '',
                       address: user?.address || '',
                       photoURL: user?.photoURL || '',
-                      location: (user as any)?.location || ''
+                      location: (user as any)?.location || '',
+                      division: user?.division || '',
+                      district: user?.district || ''
                     });
                   }}
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"

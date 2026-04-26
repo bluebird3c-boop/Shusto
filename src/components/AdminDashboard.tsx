@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { TransactionsPanel } from './TransactionsPanel';
 
 import { AMBULANCE_ROUTES, LAB_SERVICES_PRESETS, PHYSIO_SERVICES_PRESETS } from '../constants';
+import { BANGLADESH_LOCATIONS } from '../constants/locations';
 
 interface UserProfile {
   uid: string;
@@ -73,12 +74,12 @@ export function AdminDashboard() {
   const [updatingDoctorId, setUpdatingDoctorId] = useState<string | null>(null);
   
   // Form states
-  const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '' });
-  const [newProvider, setNewProvider] = useState({ name: '', location: '', contact: '', email: '' });
+  const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', fee: 0, bmdcNumber: '', experience: '', email: '', image: '', division: '', district: '' });
+  const [newProvider, setNewProvider] = useState({ name: '', location: '', contact: '', email: '', division: '', district: '' });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showRoleModal, setShowRoleModal] = useState<{ user: UserProfile, role: string } | null>(null);
-  const [roleDetails, setRoleDetails] = useState({ specialty: 'General Physician', fee: 500, bmdcNumber: 'Pending', location: 'Pending', contact: 'Pending' });
+  const [roleDetails, setRoleDetails] = useState({ specialty: 'General Physician', fee: 500, bmdcNumber: 'Pending', location: 'Pending', contact: 'Pending', division: '', district: '' });
 
   // Filter users based on search
   const filteredUsers = useMemo(() => {
@@ -258,6 +259,8 @@ export function AdminDashboard() {
         ...newDoctor, 
         email,
         id,
+        division: newDoctor.division,
+        district: newDoctor.district,
         userId: realUserId || `email_${cleanEmail}`, // Store the best available ID
         updatedAt: new Date().toISOString()
       };
@@ -272,7 +275,9 @@ export function AdminDashboard() {
         experience: newDoctor.experience,
         image: newDoctor.image,
         photoURL: newDoctor.image, // Sync to profile photo too
-        displayName: newDoctor.name // Ensure name is synced
+        displayName: newDoctor.name, // Ensure name is synced
+        division: newDoctor.division,
+        district: newDoctor.district
       };
 
       if (!userSnapshot.empty) {
@@ -345,7 +350,13 @@ export function AdminDashboard() {
       
       console.log(`Adding provider to ${collectionName} with ID ${id}`, newProvider);
       
-      await setDoc(doc(db, collectionName, id), { ...newProvider, id, type });
+      await setDoc(doc(db, collectionName, id), { 
+        ...newProvider, 
+        id, 
+        type,
+        division: newProvider.division,
+        district: newProvider.district
+      });
 
       // Update ALL user accounts with this email to have the correct role
       const email = newProvider.email.toLowerCase();
@@ -354,7 +365,11 @@ export function AdminDashboard() {
       
       if (!userSnapshot.empty) {
         const updatePromises = userSnapshot.docs.map(userDoc => 
-          updateDoc(doc(db, 'users', userDoc.id), { role: type })
+          updateDoc(doc(db, 'users', userDoc.id), { 
+            role: type,
+            division: newProvider.division,
+            district: newProvider.district
+          })
         );
         await Promise.all(updatePromises);
       } else {
@@ -364,7 +379,9 @@ export function AdminDashboard() {
           email,
           role: type,
           displayName: newProvider.name,
-          uid: manualId
+          uid: manualId,
+          division: newProvider.division,
+          district: newProvider.district
         });
       }
       
@@ -829,9 +846,67 @@ export function AdminDashboard() {
                       />
                     </div>
                   </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Division</label>
+                        <select
+                          value={roleDetails.division}
+                          onChange={(e) => setRoleDetails({ ...roleDetails, division: e.target.value, district: '' })}
+                          className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500/20"
+                        >
+                          <option value="">Select Division</option>
+                          {BANGLADESH_LOCATIONS.map(l => (
+                            <option key={l.division} value={l.division}>{l.division}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">District</label>
+                        <select
+                          value={roleDetails.district}
+                          onChange={(e) => setRoleDetails({ ...roleDetails, district: e.target.value })}
+                          disabled={!roleDetails.division}
+                          className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
+                        >
+                          <option value="">Select District</option>
+                          {roleDetails.division && BANGLADESH_LOCATIONS.find(l => l.division === roleDetails.division)?.districts.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                 </>
               ) : (
                 <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Division</label>
+                        <select
+                          value={roleDetails.division}
+                          onChange={(e) => setRoleDetails({ ...roleDetails, division: e.target.value, district: '' })}
+                          className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500/20"
+                        >
+                          <option value="">Select Division</option>
+                          {BANGLADESH_LOCATIONS.map(l => (
+                            <option key={l.division} value={l.division}>{l.division}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">District</label>
+                        <select
+                          value={roleDetails.district}
+                          onChange={(e) => setRoleDetails({ ...roleDetails, district: e.target.value })}
+                          disabled={!roleDetails.division}
+                          className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
+                        >
+                          <option value="">Select District</option>
+                          {roleDetails.division && BANGLADESH_LOCATIONS.find(l => l.division === roleDetails.division)?.districts.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Location / Area</label>
                     <input 
@@ -896,6 +971,31 @@ export function AdminDashboard() {
             {['pharmacies', 'labs', 'physios', 'hospitals', 'ambulances'].includes(activeTab) && (
               <form onSubmit={handleAddGeneralProvider} className="space-y-4">
                 <input required type="text" placeholder="Name" value={newProvider.name} onChange={e => setNewProvider({...newProvider, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
+                <div className="grid grid-cols-2 gap-4">
+                  <select
+                    required
+                    value={newProvider.division}
+                    onChange={(e) => setNewProvider({...newProvider, division: e.target.value, district: ''})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    <option value="">Division</option>
+                    {BANGLADESH_LOCATIONS.map(l => (
+                      <option key={l.division} value={l.division}>{l.division}</option>
+                    ))}
+                  </select>
+                  <select
+                    required
+                    value={newProvider.district}
+                    onChange={(e) => setNewProvider({...newProvider, district: e.target.value})}
+                    disabled={!newProvider.division}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl disabled:opacity-50"
+                  >
+                    <option value="">District</option>
+                    {newProvider.division && BANGLADESH_LOCATIONS.find(l => l.division === newProvider.division)?.districts.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
                 <input required type="text" placeholder="Location" value={newProvider.location} onChange={e => setNewProvider({...newProvider, location: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
                 <input required type="text" placeholder="Contact Number" value={newProvider.contact} onChange={e => setNewProvider({...newProvider, contact: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
                 <input required type="email" placeholder="Email" value={newProvider.email} onChange={e => setNewProvider({...newProvider, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
@@ -919,6 +1019,32 @@ export function AdminDashboard() {
                     </div>
                   </div>
                   <p className="text-xs text-slate-400 mt-2 font-medium">Click to upload doctor photo</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <select
+                    required
+                    value={newDoctor.division}
+                    onChange={(e) => setNewDoctor({...newDoctor, division: e.target.value, district: ''})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    <option value="">Division</option>
+                    {BANGLADESH_LOCATIONS.map(l => (
+                      <option key={l.division} value={l.division}>{l.division}</option>
+                    ))}
+                  </select>
+                  <select
+                    required
+                    value={newDoctor.district}
+                    onChange={(e) => setNewDoctor({...newDoctor, district: e.target.value})}
+                    disabled={!newDoctor.division}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl disabled:opacity-50"
+                  >
+                    <option value="">District</option>
+                    {newDoctor.division && BANGLADESH_LOCATIONS.find(l => l.division === newDoctor.division)?.districts.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <input required type="text" placeholder="Doctor Name" value={newDoctor.name} onChange={e => setNewDoctor({...newDoctor, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
@@ -1024,7 +1150,9 @@ export function AdminDashboard() {
                                 fee: (user as any).fee || 500,
                                 bmdcNumber: (user as any).bmdcNumber || 'Pending',
                                 location: (user as any).location || 'Pending',
-                                contact: (user as any).contact || 'Pending'
+                                contact: (user as any).contact || 'Pending',
+                                division: (user as any).division || '',
+                                district: (user as any).district || ''
                               });
                             }
                           }} 

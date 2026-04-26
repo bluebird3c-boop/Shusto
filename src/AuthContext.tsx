@@ -10,6 +10,8 @@ interface UserProfile {
   photoURL: string | null;
   address?: string;
   location?: string;
+  division?: string;
+  district?: string;
   referredBy?: string; // UID of the pharmacy/state that referred this user
   role: 'user' | 'admin' | 'doctor' | 'pharmacy' | 'physio' | 'hospital' | 'ambulance' | 'lab';
 }
