@@ -588,26 +588,26 @@ export function AdminDashboard() {
     setLoading(true);
     try {
       const medicinePresets = [
-        { name: 'Napa Extend', generic: 'Paracetamol', category: 'Fever & Pain', price: 15, company: 'Beximco', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400' },
-        { name: 'Seclo 20', generic: 'Omeprazole', category: 'Gastric', price: 7, company: 'Square', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=400' },
-        { name: 'Fenadin 120', generic: 'Fexofenadine', category: 'Allergy', price: 10, company: 'Renata', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=400' },
-        { name: 'Zithrin 500', generic: 'Azithromycin', category: 'Antibiotic', price: 35, company: 'Radiant', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=400' },
-        { name: 'Calbo-D', generic: 'Calcium + Vitamin D3', category: 'Supplements', price: 250, company: 'Square', image: 'https://images.unsplash.com/photo-1559113513-d56096310226?q=80&w=400' },
-        { name: 'Alatrol', generic: 'Cetirizine', category: 'Allergy', price: 5, company: 'Square', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' },
-        { name: 'Monas 10', generic: 'Montelukast', category: 'Asthma', price: 18, company: 'Acme', image: 'https://images.unsplash.com/photo-1471864190281-ad5fe9bb0724?q=80&w=400' },
-        { name: 'Sergel 20', generic: 'Esomeprazole', category: 'Gastric', price: 8, company: 'Healthcare', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' },
-        { name: 'Ace Plus', generic: 'Paracetamol + Caffeine', category: 'Fever & Pain', price: 3, company: 'Square', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400' },
-        { name: 'Tofen', generic: 'Ketotifen', category: 'Asthma', price: 4, company: 'Beximco', image: 'https://images.unsplash.com/photo-1579154235602-3c2cff4689bd?q=80&w=400' },
-        { name: 'Bextram Gold', generic: 'Multivitamin', category: 'Supplements', price: 450, company: 'Beximco', image: 'https://images.unsplash.com/photo-1559113084-25e50529d1bd?q=80&w=400' },
-        { name: 'Orsaline N', generic: 'ORS', category: 'Nutrition', price: 6, company: 'SMC', image: 'https://images.unsplash.com/photo-1631549916768-4119b295f78b?q=80&w=400' },
-        { name: 'Thyrox 50', generic: 'Levothyroxine', category: 'Hormone', price: 3, company: 'Square', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' },
-        { name: 'Amodis 400', generic: 'Metronidazole', category: 'Gastric', price: 5, company: 'Aristopharma', image: 'https://images.unsplash.com/photo-1471864190281-ad5fe9bb0724?q=80&w=400' },
-        { name: 'Ecap 400', generic: 'Vitamin E', category: 'Supplements', price: 7, company: 'Healthcare', image: 'https://images.unsplash.com/photo-1584017945366-bdfca864c67f?q=80&w=400' },
-        { name: 'Maxpro 20', generic: 'Esomeprazole', category: 'Gastric', price: 7, company: 'Renata', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' },
-        { name: 'Rivotril 0.5', generic: 'Clonazepam', category: 'Anxiety', price: 8, company: 'Roche', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=400' },
-        { name: 'Exium 20', generic: 'Esomeprazole', category: 'Gastric', price: 10, company: 'Radiant', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' },
-        { name: 'Bizoran 5/20', generic: 'Amlodipine + Olmesartan', category: 'Blood Pressure', price: 12, company: 'Square', image: 'https://images.unsplash.com/photo-1579154235602-3c2cff4689bd?q=80&w=400' },
-        { name: 'Metfo 500', generic: 'Metformin', category: 'Diabetes', price: 4, company: 'Beximco', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' }
+        { name: 'Napa Extend', generic: 'Paracetamol', category: 'Fever & Pain', price: 15, company: 'Beximco', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800' },
+        { name: 'Seclo 20', generic: 'Omeprazole', category: 'Gastric', price: 7, company: 'Square', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=800' },
+        { name: 'Fenadin 120', generic: 'Fexofenadine', category: 'Allergy', price: 10, company: 'Renata', image: 'https://images.unsplash.com/photo-1628771065518-0d82f1110547?q=80&w=800' },
+        { name: 'Zithrin 500', generic: 'Azithromycin', category: 'Antibiotic', price: 35, company: 'Radiant', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=800' },
+        { name: 'Calbo-D', generic: 'Calcium + Vitamin D3', category: 'Supplements', price: 250, company: 'Square', image: 'https://images.unsplash.com/photo-1559113513-d56096310226?q=80&w=800' },
+        { name: 'Alatrol', generic: 'Cetirizine', category: 'Allergy', price: 5, company: 'Square', image: 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=800' },
+        { name: 'Monas 10', generic: 'Montelukast', category: 'Asthma', price: 18, company: 'Acme', image: 'https://images.unsplash.com/photo-1579349281204-9e9005bc1ddd?q=80&w=800' },
+        { name: 'Sergel 20', generic: 'Esomeprazole', category: 'Gastric', price: 8, company: 'Healthcare', image: 'https://images.unsplash.com/photo-1580281658626-ee379f3cce93?q=80&w=800' },
+        { name: 'Ace Plus', generic: 'Paracetamol + Caffeine', category: 'Fever & Pain', price: 3, company: 'Square', image: 'https://images.unsplash.com/photo-1588674585182-0e2313d3ccf9?q=80&w=800' },
+        { name: 'Tofen', generic: 'Ketotifen', category: 'Asthma', price: 4, company: 'Beximco', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=800' },
+        { name: 'Bextram Gold', generic: 'Multivitamin', category: 'Supplements', price: 450, company: 'Beximco', image: 'https://images.unsplash.com/photo-1615461066841-f6677c789c6e?q=80&w=800' },
+        { name: 'Orsaline N', generic: 'ORS', category: 'Nutrition', price: 6, company: 'SMC', image: 'https://images.unsplash.com/photo-1631549916768-4119b295f78b?q=80&w=600' },
+        { name: 'Thyrox 50', generic: 'Levothyroxine', category: 'Hormone', price: 3, company: 'Square', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=600' },
+        { name: 'Amodis 400', generic: 'Metronidazole', category: 'Gastric', price: 5, company: 'Aristopharma', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=600' },
+        { name: 'Ecap 400', generic: 'Vitamin E', category: 'Supplements', price: 7, company: 'Healthcare', image: 'https://images.unsplash.com/photo-1584017945366-bdfca864c67f?q=80&w=600' },
+        { name: 'Maxpro 20', generic: 'Esomeprazole', category: 'Gastric', price: 7, company: 'Renata', image: 'https://images.unsplash.com/photo-1580281658626-ee379f3cce93?q=80&w=600' },
+        { name: 'Rivotril 0.5', generic: 'Clonazepam', category: 'Anxiety', price: 8, company: 'Roche', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=600' },
+        { name: 'Exium 20', generic: 'Esomeprazole', category: 'Gastric', price: 10, company: 'Radiant', image: 'https://images.unsplash.com/photo-1580281658626-ee379f3cce93?q=80&w=600' },
+        { name: 'Bizoran 5/20', generic: 'Amlodipine + Olmesartan', category: 'Blood Pressure', price: 12, company: 'Square', image: 'https://images.unsplash.com/photo-1587854692152-cbe660dbbb88?q=80&w=600' },
+        { name: 'Metfo 500', generic: 'Metformin', category: 'Diabetes', price: 4, company: 'Beximco', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=600' }
       ];
 
       for (const med of medicinePresets) {
