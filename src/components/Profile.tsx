@@ -36,6 +36,51 @@ export function Profile() {
     }
   };
 
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          // Use Nominatim for free reverse geocoding
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`
+          );
+          const data = await response.json();
+          
+          let locationName = "";
+          if (data.address) {
+            const addr = data.address;
+            locationName = addr.city || addr.town || addr.village || addr.suburb || addr.state || "Unknown Location";
+          } else {
+            locationName = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+          }
+
+          setFormData(prev => ({ ...prev, location: locationName }));
+          // Also set address if it's empty
+          if (!formData.address && data.display_name) {
+            setFormData(prev => ({ ...prev, address: data.display_name }));
+          }
+          alert(`লোকেশন পাওয়া গেছে: ${locationName}`);
+        } catch (error) {
+          console.error("Location detection error:", error);
+          alert("লোকেশন ডিটেক্ট করতে সমস্যা হয়েছে।");
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        setLoading(false);
+        alert("লোকেশন পারমিশন পাওয়া যায়নি।");
+      }
+    );
+  };
+
   const syncMyRole = async () => {
     if (!user || !user.email) return;
     setLoading(true);
@@ -181,9 +226,19 @@ export function Profile() {
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                  className="w-full pl-12 pr-32 py-4 bg-slate-50 border-none rounded-2xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
                   placeholder="আপনার এলাকা (যেমন: মিরপুর, ঢাকা)"
                 />
+                {isEditing && (
+                  <button 
+                    onClick={detectLocation}
+                    disabled={loading}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={12} /> : <RefreshCcw size={12} />}
+                    AUTO
+                  </button>
+                )}
               </div>
             </div>
 

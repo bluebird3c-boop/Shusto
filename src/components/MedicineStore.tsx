@@ -68,6 +68,19 @@ export function MedicineStore() {
       const snapshot = await getDocs(q);
       const newMeds = snapshot.docs.map(doc => {
         const data = doc.data() as any;
+        // Apply better placeholder logic if image is missing
+        if (!data.image) {
+          const nameLower = (data.name || '').toLowerCase();
+          if (nameLower.includes('napa') || nameLower.includes('acetaminophen') || nameLower.includes('paracetamol')) {
+            data.image = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400';
+          } else if (nameLower.includes('seclo') || nameLower.includes('gastric') || nameLower.includes('omeprazole')) {
+            data.image = 'https://images.unsplash.com/photo-1550572017-ed200f545dec?auto=format&fit=crop&q=80&w=400';
+          } else if (nameLower.includes('calcium') || nameLower.includes('vitamin')) {
+            data.image = 'https://images.unsplash.com/photo-1559113513-d56096310226?auto=format&fit=crop&q=80&w=400';
+          } else if (nameLower.includes('antibiotic') || nameLower.includes('zithrin')) {
+            data.image = 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?auto=format&fit=crop&q=80&w=400';
+          }
+        }
         return { id: doc.id, ...data } as Medicine;
       });
       
@@ -233,6 +246,31 @@ export function MedicineStore() {
           <p className="text-slate-500">হোম ডেলিভারি সহ আপনার প্রয়োজনীয় ঔষধ অর্ডার করুন।</p>
         </div>
         <div className="flex items-center gap-3">
+          {user?.email === 'shustobd@gmail.com' && (
+            <button 
+              onClick={async () => {
+                if (!confirm('Sync realistic medicine images to Firestore?')) return;
+                const medicinePresets = [
+                  { name: 'Napa Extend', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400' },
+                  { name: 'Seclo 20', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=400' },
+                  { name: 'Fenadin 120', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=400' },
+                  { name: 'Zithrin 500', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=400' },
+                  { name: 'Calbo-D', image: 'https://images.unsplash.com/photo-1559113513-d56096310226?q=80&w=400' },
+                  { name: 'Alatrol', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' },
+                  { name: 'Monas 10', image: 'https://images.unsplash.com/photo-1471864190281-ad5fe9bb0724?q=80&w=400' },
+                  { name: 'Sergel 20', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' }
+                ];
+                for (const med of medicinePresets) {
+                  const id = `med_${med.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                  await updateDoc(doc(db, 'medicines', id), { image: med.image }).catch(() => {});
+                }
+                alert('Images synced! Refresh to see changes.');
+              }}
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all"
+            >
+              Sync Images
+            </button>
+          )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -284,17 +322,25 @@ export function MedicineStore() {
                 key={med.id}
                 className="bg-white rounded-3xl border border-slate-100 overflow-hidden group hover:shadow-xl hover:shadow-slate-200/50 transition-all"
               >
-                <div className="aspect-[4/3] overflow-hidden relative">
+                <div className="aspect-square overflow-hidden relative bg-white flex items-center justify-center p-4">
                   <img 
                     src={med.image || `https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400`} 
                     alt={med.name} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400';
+                    }}
                   />
-                  <div className="absolute top-3 left-3">
-                    <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-emerald-600 text-xs font-bold rounded-full">
+                  <div className="absolute top-3 left-3 flex flex-col gap-1">
+                    <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded-md shadow-sm uppercase tracking-tighter">
                       {med.category}
                     </span>
+                    {med.company && (
+                      <span className="px-2 py-0.5 bg-slate-900/5 backdrop-blur-md text-slate-900 text-[9px] font-black rounded-md uppercase tracking-tighter border border-slate-900/5">
+                        {med.company}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="p-5">

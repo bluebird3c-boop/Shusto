@@ -244,6 +244,60 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
     }
   };
 
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      alert("আপনার ব্রাউজার জিওলোকেশন সাপোর্ট করে না।");
+      return;
+    }
+
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Use Nominatim for free reverse geocoding
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`
+          );
+          const data = await response.json();
+          
+          let locationString = "";
+          if (data.address) {
+            const addr = data.address;
+            locationString = addr.city || addr.town || addr.village || addr.suburb || addr.state || "Unknown Location";
+          } else {
+            locationString = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+          }
+          
+          if (user) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              location: locationString,
+              lat: latitude,
+              lng: longitude,
+              address: data.display_name || '',
+              updatedAt: new Date().toISOString()
+            });
+            alert(`আপনার এলাকা সেট করা হয়েছে: ${locationString}`);
+            window.location.reload(); // Reload to refresh user context
+          }
+        } catch (error) {
+          console.error("Error saving location:", error);
+          alert("লোকেশন সেভ করতে সমস্যা হয়েছে।");
+        } finally {
+          setDetectingLocation(false);
+        }
+      },
+      (error) => {
+        setDetectingLocation(false);
+        console.error("Geolocation error:", error);
+        alert("লোকেশন অ্যাক্সেস করা সম্ভব হয়নি। দয়া করে পারমিশন চেক করুন।");
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+  };
+
   const filteredProviders = providers.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.location.toLowerCase().includes(searchQuery.toLowerCase())
@@ -284,11 +338,30 @@ export function ServiceDirectory({ type, title, description }: ServiceDirectoryP
       </div>
 
       {user && !(user as any).location && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-4 text-amber-800 animate-in fade-in slide-in-from-top-2">
-           <MapPin className="flex-shrink-0 text-amber-500" />
-           <p className="text-sm font-medium">
-             আপনার প্রোফাইল থেকে এলাকা (Area) সেট করা নেই। দয়া করে প্রোফাইল থেকে এলাকা সেট করুন যাতে আপনার নিকটবর্তী প্রোভাইডাররা সার্ভিস অনুরোধটি দ্রুত দেখতে পায়।
-           </p>
+        <div className="bg-amber-50 border border-amber-200 p-6 rounded-[32px] flex flex-col md:flex-row items-center gap-6 text-amber-800 animate-in fade-in slide-in-from-top-2">
+           <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+             <MapPin size={24} />
+           </div>
+           <div className="flex-1 text-center md:text-left">
+             <p className="font-bold mb-1">এলাকা (Area) সেট করা নেই</p>
+             <p className="text-sm opacity-80">
+               আপনার প্রোফাইল থেকে এলাকা সেট করুন যাতে আপনার নিকটবর্তী প্রোভাইডাররা সার্ভিস অনুরোধটি দ্রুত দেখতে পায়।
+             </p>
+           </div>
+           <button 
+             onClick={detectLocation}
+             disabled={detectingLocation}
+             className="px-6 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-all shadow-lg shadow-amber-600/20 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+           >
+             {detectingLocation ? (
+               <>লোডিং...</>
+             ) : (
+               <>
+                 <Navigation size={18} />
+                 লোকেশন ডিটেক্ট করুন
+               </>
+             )}
+           </button>
         </div>
       )}
 

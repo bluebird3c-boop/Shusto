@@ -566,6 +566,46 @@ export function AdminDashboard() {
     }
   };
 
+  const seedMedicines = async () => {
+    if (!confirm('This will seed a collection of 20+ common medicines with realistic data. Continue?')) return;
+    setLoading(true);
+    try {
+      const medicinePresets = [
+        { name: 'Napa Extend', generic: 'Paracetamol', category: 'Fever & Pain', price: 15, company: 'Beximco', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400' },
+        { name: 'Seclo 20', generic: 'Omeprazole', category: 'Gastric', price: 7, company: 'Square', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=400' },
+        { name: 'Fenadin 120', generic: 'Fexofenadine', category: 'Allergy', price: 10, company: 'Renata', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=400' },
+        { name: 'Zithrin 500', generic: 'Azithromycin', category: 'Antibiotic', price: 35, company: 'Radiant', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=400' },
+        { name: 'Calbo-D', generic: 'Calcium + Vitamin D3', category: 'Supplements', price: 250, company: 'Square', image: 'https://images.unsplash.com/photo-1559113513-d56096310226?q=80&w=400' },
+        { name: 'Alatrol', generic: 'Cetirizine', category: 'Allergy', price: 5, company: 'Square', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' },
+        { name: 'Monas 10', generic: 'Montelukast', category: 'Asthma', price: 18, company: 'Acme', image: 'https://images.unsplash.com/photo-1471864190281-ad5fe9bb0724?q=80&w=400' },
+        { name: 'Sergel 20', generic: 'Esomeprazole', category: 'Gastric', price: 8, company: 'Healthcare', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' },
+        { name: 'Ace Plus', generic: 'Paracetamol + Caffeine', category: 'Fever & Pain', price: 3, company: 'Square', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400' },
+        { name: 'Tofen', generic: 'Ketotifen', category: 'Asthma', price: 4, company: 'Beximco', image: 'https://images.unsplash.com/photo-1579154235602-3c2cff4689bd?q=80&w=400' },
+        { name: 'Bextram Gold', generic: 'Multivitamin', category: 'Supplements', price: 450, company: 'Beximco', image: 'https://images.unsplash.com/photo-1559113084-25e50529d1bd?q=80&w=400' },
+        { name: 'Orsaline N', generic: 'ORS', category: 'Nutrition', price: 6, company: 'SMC', image: 'https://images.unsplash.com/photo-1631549916768-4119b295f78b?q=80&w=400' },
+        { name: 'Thyrox 50', generic: 'Levothyroxine', category: 'Hormone', price: 3, company: 'Square', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' },
+        { name: 'Amodis 400', generic: 'Metronidazole', category: 'Gastric', price: 5, company: 'Aristopharma', image: 'https://images.unsplash.com/photo-1471864190281-ad5fe9bb0724?q=80&w=400' },
+        { name: 'Ecap 400', generic: 'Vitamin E', category: 'Supplements', price: 7, company: 'Healthcare', image: 'https://images.unsplash.com/photo-1584017945366-bdfca864c67f?q=80&w=400' },
+        { name: 'Maxpro 20', generic: 'Esomeprazole', category: 'Gastric', price: 7, company: 'Renata', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' },
+        { name: 'Rivotril 0.5', generic: 'Clonazepam', category: 'Anxiety', price: 8, company: 'Roche', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=400' },
+        { name: 'Exium 20', generic: 'Esomeprazole', category: 'Gastric', price: 10, company: 'Radiant', image: 'https://images.unsplash.com/photo-1621256335133-c15147814b62?q=80&w=400' },
+        { name: 'Bizoran 5/20', generic: 'Amlodipine + Olmesartan', category: 'Blood Pressure', price: 12, company: 'Square', image: 'https://images.unsplash.com/photo-1579154235602-3c2cff4689bd?q=80&w=400' },
+        { name: 'Metfo 500', generic: 'Metformin', category: 'Diabetes', price: 4, company: 'Beximco', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=400' }
+      ];
+
+      for (const med of medicinePresets) {
+        const id = `med_${med.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'medicines', id), { ...med, id, updatedAt: new Date().toISOString() });
+      }
+      showSuccess("Medicines seeded with real images!");
+    } catch (error) {
+      console.error("Medicine seed error:", error);
+      alert("Failed to seed medicines.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const seedServices = async () => {    if (!confirm('This will seed default services for Lab and Physio. Continue?')) return;
     setLoading(true);
     try {
@@ -722,6 +762,16 @@ export function AdminDashboard() {
                 activeTab === 'hospitals' ? 'হাসপাতাল যোগ করুন' :
                 activeTab === 'ambulances' ? 'অ্যাম্বুলেন্স যোগ করুন' : 'ডাক্তার যোগ করুন'
               }
+            </button>
+          )}
+          {activeTab === 'medicines' && (
+            <button 
+              onClick={seedMedicines}
+              disabled={loading}
+              className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all text-sm shadow-lg shadow-emerald-500/20"
+            >
+              <RefreshCcw size={18} className={cn(loading && "animate-spin")} />
+              ঔষধ ড্রাইভ সিঙ্ক করুন (Real Images)
             </button>
           )}
         </div>
@@ -1021,9 +1071,20 @@ export function AdminDashboard() {
             <tbody className="divide-y divide-slate-50">
               {medicines.map((med) => (
                 <tr key={med.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-900">{med.name}</div>
-                    <div className="text-[10px] text-slate-400">{med.generic} | {med.company}</div>
+                  <td className="px-6 py-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden border border-slate-100 flex-shrink-0">
+                      {med.image ? (
+                        <img src={med.image} alt={med.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300">
+                          <Pill size={16} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900">{med.name}</div>
+                      <div className="text-[10px] text-slate-400">{med.generic} | {med.company}</div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500">{med.category}</td>
                   <td className="px-6 py-4 font-bold text-emerald-600">৳{med.price}</td>
