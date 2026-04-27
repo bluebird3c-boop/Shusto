@@ -31,6 +31,7 @@ export function DoctorDirectory() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSpecialty, setSelectedSpecialty] = useState('All Specialty');
   const [bookingDoctor, setBookingDoctor] = useState<Doctor | null>(null);
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success'>('idle');
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
@@ -145,10 +146,14 @@ export function DoctorDirectory() {
     }
   };
 
-  const filteredDoctors = doctors.filter(doc => 
-    doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.specialty.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const specialties = ['All Specialty', ...new Set(doctors.map(d => d.specialty))];
+
+  const filteredDoctors = doctors.filter(doc => {
+    const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         doc.specialty.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSpecialty = selectedSpecialty === 'All Specialty' || doc.specialty === selectedSpecialty;
+    return matchesSearch && matchesSpecialty;
+  });
 
   return (
     <div className="space-y-8">
@@ -192,15 +197,26 @@ export function DoctorDirectory() {
             <h1 className="text-3xl font-bold text-slate-900">ডাক্তার খুঁজুন ({doctors.length})</h1>
             <p className="text-slate-500">সেরা বিশেষজ্ঞ ডাক্তারদের সাথে অ্যাপয়েন্টমেন্ট বুক করুন।</p>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search by specialty or name..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-80"
-            />
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search by specialty or name..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-80"
+              />
+            </div>
+            <select
+              value={selectedSpecialty}
+              onChange={(e) => setSelectedSpecialty(e.target.value)}
+              className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 min-w-[200px] text-slate-600 font-medium"
+            >
+              {specialties.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
         </div>
 

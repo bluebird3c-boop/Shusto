@@ -68,21 +68,31 @@ export function MedicineStore() {
       const snapshot = await getDocs(q);
       const newMeds = snapshot.docs.map(doc => {
         const data = doc.data() as any;
-        // Apply better placeholder logic if image is missing
-        if (!data.image) {
-          const nameLower = (data.name || '').toLowerCase();
-          if (nameLower.includes('napa') || nameLower.includes('acetaminophen') || nameLower.includes('paracetamol')) {
-            data.image = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=600';
-          } else if (nameLower.includes('seclo') || nameLower.includes('gastric') || nameLower.includes('omeprazole') || nameLower.includes('sergel') || nameLower.includes('maxpro')) {
-            data.image = 'https://images.unsplash.com/photo-1580281658626-ee379f3cce93?q=80&w=600';
-          } else if (nameLower.includes('calcium') || nameLower.includes('vitamin') || nameLower.includes('ecap') || nameLower.includes('bextram')) {
-            data.image = 'https://images.unsplash.com/photo-1615461066841-f6677c789c6e?q=80&w=600';
-          } else if (nameLower.includes('antibiotic') || nameLower.includes('zithrin')) {
-            data.image = 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=600';
-          } else if (nameLower.includes('allergy') || nameLower.includes('fenadin') || nameLower.includes('alatrol')) {
-            data.image = 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=600';
-          }
+        const nameLower = (data.name || '').toLowerCase();
+        
+        // FORCE REALISTIC MEDICINE IMAGES based on keywords to override any "Tiger" or "Sea" placeholders
+        // We check for common medicine keywords to ensure we show medical images
+        if (nameLower.includes('napa') || nameLower.includes('ace') || nameLower.includes('paracetamol') || nameLower.includes('fever') || nameLower.includes('pain')) {
+          data.image = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800';
+        } else if (nameLower.includes('seclo') || nameLower.includes('sergel') || nameLower.includes('maxpro') || nameLower.includes('exium') || nameLower.includes('gastric') || nameLower.includes('omeprazole') || nameLower.includes('pantoprazole')) {
+          data.image = 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=800';
+        } else if (nameLower.includes('calbo') || nameLower.includes('vitamin') || nameLower.includes('ecap') || nameLower.includes('bextram') || nameLower.includes('supplement') || nameLower.includes('calcium')) {
+          data.image = 'https://images.unsplash.com/photo-1559113084-25e50529d1bd?q=80&w=800';
+        } else if (nameLower.includes('zithrin') || nameLower.includes('antibiotic') || nameLower.includes('fix') || nameLower.includes('azithromycin') || nameLower.includes('cefuroxime')) {
+          data.image = 'https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=800';
+        } else if (nameLower.includes('fenadin') || nameLower.includes('alatrol') || nameLower.includes('allergy') || nameLower.includes('cetirizine') || nameLower.includes('fexofenadine')) {
+          data.image = 'https://images.unsplash.com/photo-1628771065518-0d82f1110547?q=80&w=800';
+        } else if (nameLower.includes('orsaline') || nameLower.includes('syrup') || nameLower.includes('liquid') || nameLower.includes('nutrition') || nameLower.includes('ors')) {
+          data.image = 'https://images.unsplash.com/photo-1631549916768-4119b295f78b?q=80&w=800';
+        } else if (nameLower.includes('thyrox') || nameLower.includes('hormone') || nameLower.includes('thyroxine')) {
+          data.image = 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=800';
+        } else if (nameLower.includes('monas') || nameLower.includes('asthma') || nameLower.includes('montelukast')) {
+          data.image = 'https://images.unsplash.com/photo-1579349281204-9e9005bc1ddd?q=80&w=800';
+        } else {
+          // Default generic medicine image if none of the above matches or if image is likely wrong
+          data.image = 'https://images.unsplash.com/photo-1587854692152-cbe660dbbb88?q=80&w=800';
         }
+        
         return { id: doc.id, ...data } as Medicine;
       });
       
@@ -254,7 +264,7 @@ export function MedicineStore() {
                 if (!confirm('Sync realistic medicine images to Firestore?')) return;
                 const medicinePresets = [
                   { name: 'Napa Extend', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800' },
-                  { name: 'Seclo 20', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=800' },
+                  { name: 'Seclo 20', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=800' },
                   { name: 'Fenadin 120', image: 'https://images.unsplash.com/photo-1628771065518-0d82f1110547?q=80&w=800' },
                   { name: 'Zithrin 500', image: 'https://images.unsplash.com/photo-1512069772995-ec65ed4563c3?q=80&w=800' },
                   { name: 'Calbo-D', image: 'https://images.unsplash.com/photo-1559113513-d56096310226?q=80&w=800' },
@@ -262,7 +272,12 @@ export function MedicineStore() {
                   { name: 'Monas 10', image: 'https://images.unsplash.com/photo-1579349281204-9e9005bc1ddd?q=80&w=800' },
                   { name: 'Sergel 20', image: 'https://images.unsplash.com/photo-1580281658626-ee379f3cce93?q=80&w=800' },
                   { name: 'Maxpro 20', image: 'https://images.unsplash.com/photo-1588674585182-0e2313d3ccf9?q=80&w=800' },
-                  { name: 'Bextram Gold', image: 'https://images.unsplash.com/photo-1615461066841-f6677c789c6e?q=80&w=800' }
+                  { name: 'Bextram Gold', image: 'https://images.unsplash.com/photo-1615461066841-f6677c789c6e?q=80&w=800' },
+                  { name: 'Orsaline N', image: 'https://images.unsplash.com/photo-1631549916768-4119b295f78b?q=80&w=800' },
+                  { name: 'Thyrox 50', image: 'https://images.unsplash.com/photo-1626285861696-9f0bf5a49c6d?q=80&w=800' },
+                  { name: 'Amodis 400', image: 'https://images.unsplash.com/photo-1550572017-ed200f545dec?q=80&w=800' },
+                  { name: 'Ecap 400', image: 'https://images.unsplash.com/photo-1584017945366-bdfca864c67f?q=80&w=800' },
+                  { name: 'Rivotril 0.5', image: 'https://images.unsplash.com/photo-1563342081-3968393587b1?q=80&w=800' }
                 ];
                 for (const med of medicinePresets) {
                   const id = `med_${med.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
@@ -328,12 +343,12 @@ export function MedicineStore() {
               >
                 <div className="aspect-square overflow-hidden relative bg-slate-50 flex items-center justify-center p-2">
                   <img 
-                    src={med.image || `https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=600`} 
+                    src={med.image || `https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800`} 
                     alt={med.name} 
-                    className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                    className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=600';
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800';
                     }}
                   />
                   <div className="absolute top-3 left-3 flex flex-col gap-1">
