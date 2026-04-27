@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer utilities {
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    body {
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    #prescription-paper {
+      border: none !important;
+      box-shadow: none !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .fixed {
+      position: static !important;
+      background: white !important;
+      padding: 0 !important;
+    }
+
+    .overflow-y-auto {
+      overflow: visible !important;
+    }
+  }
+}
+

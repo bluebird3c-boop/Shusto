@@ -55,16 +55,22 @@ export function Prescriptions() {
   const handleDownloadPDF = async (pres: Prescription) => {
     setDownloadingId(pres.id);
     setSelectedPrescription(pres);
-    // Wait for modal to render
+    // Wait for modal to render completely
     setTimeout(async () => {
       try {
         await downloadElementAsPDF('prescription-paper', `prescription-${pres.id}.pdf`);
       } catch (err) {
-        alert("Download failed. Please try again.");
+        console.error("PDF download error:", err);
+        alert("Download failed. Opening Print dialog instead...");
+        window.print();
       } finally {
         setDownloadingId(null);
       }
-    }, 500);
+    }, 1200);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
@@ -154,6 +160,14 @@ export function Prescriptions() {
           <div className="w-full max-w-3xl relative">
             {/* Close Button UI */}
             <div className="flex justify-end mb-4 gap-3 no-print">
+               <button 
+                onClick={handlePrint}
+                className="bg-white/10 text-white p-3 rounded-2xl hover:bg-white/20 transition-all border border-white/20 backdrop-blur-lg flex items-center gap-2"
+                title="Print Prescription"
+              >
+                <Activity size={20} />
+                <span className="font-bold text-sm">প্রিন্ট</span>
+              </button>
                <button 
                 onClick={() => handleDownloadPDF(selectedPrescription)}
                 className="bg-white/10 text-white p-3 rounded-2xl hover:bg-white/20 transition-all border border-white/20 backdrop-blur-lg flex items-center gap-2"
